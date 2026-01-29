@@ -275,10 +275,11 @@ fn handle_mouse_event(
                 }
                 AppMode::DriveSelect => {
                     // Check if click is inside drive selector
-                    let popup_width = (terminal_width * 80 / 100).min(terminal_width - 4);
-                    let popup_height = (terminal_height * 70 / 100).min(terminal_height - 4);
-                    let popup_x = (terminal_width - popup_width) / 2;
-                    let popup_y = (terminal_height - popup_height) / 2;
+                    // Must match centered_rect(70, 80, area) used in render_drive_selector
+                    let popup_width = terminal_width * 70 / 100;
+                    let popup_height = terminal_height * 80 / 100;
+                    let popup_x = terminal_width * 15 / 100; // (100-70)/2 = 15%
+                    let popup_y = terminal_height * 10 / 100; // (100-80)/2 = 10%
 
                     if col < popup_x || col >= popup_x + popup_width ||
                        row < popup_y || row >= popup_y + popup_height {
@@ -286,12 +287,17 @@ fn handle_mouse_event(
                         return;
                     }
                     // Inside - select drive based on row
-                    let relative_row = row.saturating_sub(popup_y + 2);
-                    let drive_index = (relative_row / 3) as usize; // Each drive takes 3 rows
-                    if drive_index < app.drives.len() {
-                        app.drive_selected_index = drive_index;
-                        if is_double_click {
-                            app.select_drive();
+                    // Content starts at popup_y + 1 (border) + 1 (empty line) = popup_y + 2
+                    // Each drive takes 3 rows: name, bar, empty
+                    let content_start = popup_y + 2;
+                    if row >= content_start {
+                        let relative_row = row - content_start;
+                        let drive_index = (relative_row / 3) as usize;
+                        if drive_index < app.drives.len() {
+                            app.drive_selected_index = drive_index;
+                            if is_double_click {
+                                app.select_drive();
+                            }
                         }
                     }
                     return;
