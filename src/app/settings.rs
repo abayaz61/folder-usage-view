@@ -29,6 +29,8 @@ pub struct Settings {
     pub language: Language,
     #[serde(default)]
     pub color_palette: ColorPalette,
+    #[serde(default)]
+    pub use_ascii_icons: bool,
 }
 
 impl Default for Settings {
@@ -39,6 +41,7 @@ impl Default for Settings {
             path_registered: false,
             language: Language::default(),
             color_palette: ColorPalette::default(),
+            use_ascii_icons: false,
         }
     }
 }

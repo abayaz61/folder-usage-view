@@ -26,6 +26,7 @@ impl<'a> ComputerViewWidget<'a> {
         let is_selected = drive_idx == self.app.drive_selected_index;
         let is_current = self.app.config.target_path.starts_with(&drive.mount_point);
         let theme = self.app.theme();
+        let icons = self.app.icons();
 
         // Card border style
         let border_color = if is_selected {
@@ -53,7 +54,7 @@ impl<'a> ComputerViewWidget<'a> {
         }
 
         // Drive icon and name
-        let icon = if drive.is_removable { "💾" } else { "💿" };
+        let icon = icons.drive(drive.is_removable);
         let name_style = Style::default()
             .fg(if is_selected { Color::White } else { Color::Cyan })
             .add_modifier(Modifier::BOLD);

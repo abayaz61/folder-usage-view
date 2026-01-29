@@ -431,3 +431,63 @@ impl Theme {
         Color::Rgb(100, 150, 255)
     }
 }
+
+/// Icon set that supports both Unicode (emoji) and ASCII modes
+/// ASCII mode is useful for remote desktop connections where Unicode doesn't render properly
+pub struct Icons {
+    use_ascii: bool,
+}
+
+impl Icons {
+    pub fn new(use_ascii: bool) -> Self {
+        Self { use_ascii }
+    }
+
+    /// Folder icon
+    pub fn folder(&self) -> &'static str {
+        if self.use_ascii { "[D]" } else { "📁" }
+    }
+
+    /// File icon
+    pub fn file(&self) -> &'static str {
+        if self.use_ascii { "[F]" } else { "📄" }
+    }
+
+    /// Removable drive icon (USB, etc.)
+    pub fn drive_removable(&self) -> &'static str {
+        if self.use_ascii { "[R]" } else { "💾" }
+    }
+
+    /// Fixed drive icon (HDD, SSD)
+    pub fn drive_fixed(&self) -> &'static str {
+        if self.use_ascii { "[D]" } else { "💿" }
+    }
+
+    /// Parent directory (..)
+    pub fn parent(&self) -> &'static str {
+        if self.use_ascii { "[..]" } else { "📁" }
+    }
+
+    /// Settings/gear icon
+    pub fn settings(&self) -> &'static str {
+        if self.use_ascii { "[*]" } else { "⚙" }
+    }
+
+    /// Get icon for a drive based on whether it's removable
+    pub fn drive(&self, is_removable: bool) -> &'static str {
+        if is_removable {
+            self.drive_removable()
+        } else {
+            self.drive_fixed()
+        }
+    }
+
+    /// Get icon for an entry based on whether it's a directory
+    pub fn entry(&self, is_dir: bool) -> &'static str {
+        if is_dir {
+            self.folder()
+        } else {
+            self.file()
+        }
+    }
+}

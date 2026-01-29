@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::model::{DriveInfo, FileTree, NodeId, get_all_drives};
 use crate::scanner::{ScanMessage, ScanProgress, ScanResult};
-use crate::ui::theme::Theme;
+use crate::ui::theme::{Icons, Theme};
 
 use super::config::Config;
 use super::settings::Settings;
@@ -133,6 +133,11 @@ impl App {
     /// Get the current theme based on settings
     pub fn theme(&self) -> Theme {
         Theme::new(self.settings.color_palette)
+    }
+
+    /// Get the current icon set based on settings
+    pub fn icons(&self) -> Icons {
+        Icons::new(self.settings.use_ascii_icons)
     }
 
     pub fn start_scan(&mut self) -> Sender<ScanMessage> {
@@ -589,7 +594,7 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 7; // Number of settings options
+        const SETTINGS_COUNT: usize = 8; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -708,6 +713,12 @@ impl App {
                 // Toggle color palette
                 self.settings.color_palette = self.settings.color_palette.next();
                 self.message = Some(format!("Theme: {}", self.settings.color_palette.name()));
+            }
+            7 => {
+                // Toggle ASCII icons
+                self.settings.use_ascii_icons = !self.settings.use_ascii_icons;
+                let mode = if self.settings.use_ascii_icons { "ASCII" } else { "Unicode" };
+                self.message = Some(format!("Icons: {}", mode));
             }
             _ => {}
         }

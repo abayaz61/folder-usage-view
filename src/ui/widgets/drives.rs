@@ -22,6 +22,7 @@ impl Widget for DriveListWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let s = Strings::new(self.app.settings.language);
         let theme = self.app.theme();
+        let icons = self.app.icons();
 
         let block = Block::default()
             .borders(Borders::ALL)
@@ -70,7 +71,7 @@ impl Widget for DriveListWidget<'_> {
                 .collect();
 
             // Drive icon
-            let icon = if drive.is_removable { "💾" } else { "💿" };
+            let icon = icons.drive(drive.is_removable);
 
             // Format sizes
             let used_str = format_size(drive.used_space);

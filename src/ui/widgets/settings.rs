@@ -71,6 +71,7 @@ impl Widget for SettingsWidget<'_> {
         let lang = self.app.settings.language;
         let s = Strings::new(lang);
         let theme = self.app.theme();
+        let icons = self.app.icons();
 
         let block = Block::default()
             .borders(Borders::ALL)
@@ -86,7 +87,7 @@ impl Widget for SettingsWidget<'_> {
 
         let mut lines = vec![
             Line::from(""),
-            Line::from(Span::styled(format!("  ⚙ {}", s.get("settings.header")), header_style)),
+            Line::from(Span::styled(format!("  {} {}", icons.settings(), s.get("settings.header")), header_style)),
             Line::from(""),
             Line::from(Span::styled(
                 "  ─────────────────────────────────────────────",
@@ -201,6 +202,20 @@ impl Widget for SettingsWidget<'_> {
             s.get("settings.palette"),
             palette_value,
             s.get("settings.palette_desc"),
+            true,
+        ));
+
+        // ASCII icons option
+        let icons_value = if self.app.settings.use_ascii_icons {
+            s.get("settings.icons_ascii")
+        } else {
+            s.get("settings.icons_unicode")
+        };
+        lines.extend(self.render_option(
+            7,
+            s.get("settings.icons"),
+            icons_value,
+            s.get("settings.icons_desc"),
             true,
         ));
 

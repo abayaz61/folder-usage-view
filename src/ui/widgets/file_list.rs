@@ -20,6 +20,7 @@ impl<'a> FileListWidget<'a> {
 impl Widget for FileListWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let s = Strings::new(self.app.settings.language);
+        let icons = self.app.icons();
 
         let block = Block::default()
             .borders(Borders::ALL)
@@ -97,8 +98,9 @@ impl Widget for FileListWidget<'_> {
             let mut x = inner.x;
             buf.set_string(x, y_pos, "  ", base_style.fg(Color::DarkGray));
             x += 2;
-            buf.set_string(x, y_pos, "📁", base_style);
-            x += 3;
+            let folder_icon = icons.folder();
+            buf.set_string(x, y_pos, folder_icon, base_style);
+            x += folder_icon.chars().count() as u16 + 1;
             buf.set_string(x, y_pos, "..", base_style.fg(Color::Yellow).add_modifier(Modifier::BOLD));
 
             y_pos += 1;
@@ -128,7 +130,7 @@ impl Widget for FileListWidget<'_> {
             let entry_type = node.map(|n| &n.entry_type);
 
             // Build the line
-            let icon = if *is_dir { "📁" } else { "📄" };
+            let icon = icons.entry(*is_dir);
             let mark = if is_marked { "●" } else { " " };
 
             let percentage = if current_total > 0 {
