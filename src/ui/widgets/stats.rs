@@ -105,11 +105,13 @@ fn render_separator(buf: &mut Buffer, area: Rect, title: &str) {
     let title_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD);
 
     // Draw line with title
-    let title_len = title.len().min(area.width as usize - 4);
+    let max_len = area.width as usize - 4;
+    let title_display: String = title.chars().take(max_len).collect();
+    let title_len = title_display.chars().count();
     let title_start = area.x + 1;
     let line_end = area.x + area.width;
 
-    buf.set_string(title_start, area.y, &title[..title_len], title_style);
+    buf.set_string(title_start, area.y, &title_display, title_style);
 
     // Draw dashes after title
     for x in (title_start + title_len as u16 + 1)..line_end {
@@ -202,9 +204,11 @@ fn render_largest_files(app: &App, buf: &mut Buffer, area: Rect) {
             break;
         }
 
-        // Truncate name
-        let display_name = if name.len() > name_width {
-            format!("{}...", &name[..name_width.saturating_sub(3)])
+        // Truncate name (character-safe)
+        let char_count = name.chars().count();
+        let display_name = if char_count > name_width {
+            let truncated: String = name.chars().take(name_width.saturating_sub(3)).collect();
+            format!("{}...", truncated)
         } else {
             name.clone()
         };

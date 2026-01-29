@@ -6,7 +6,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::Theme;
-use crate::util::format::format_size;
+use crate::util::format::{format_size, truncate_str};
 
 pub struct ComputerViewWidget<'a> {
     app: &'a App,
@@ -57,18 +57,25 @@ impl<'a> ComputerViewWidget<'a> {
             .fg(if is_selected { Color::White } else { Color::Cyan })
             .add_modifier(Modifier::BOLD);
 
-        let name_line = format!("{} {}", icon, drive.display_name());
+        // Truncate name to fit
+        let max_name_len = inner.width.saturating_sub(8) as usize;
+        let display_name = drive.display_name();
+        let truncated_name = truncate_str(&display_name, max_name_len);
+        let name_line = format!("{} {}", icon, truncated_name);
         buf.set_string(inner.x + 1, inner.y, &name_line, name_style);
 
-        // File system type
-        if inner.width > 15 {
+        // File system type (only if space available)
+        if inner.width > 20 {
             let fs_str = format!("[{}]", drive.file_system);
-            buf.set_string(
-                inner.x + inner.width.saturating_sub(fs_str.len() as u16 + 1),
-                inner.y,
-                &fs_str,
-                Style::default().fg(Color::DarkGray),
-            );
+            let fs_len = fs_str.chars().count() as u16;
+            if inner.width > fs_len + 2 {
+                buf.set_string(
+                    inner.x + inner.width.saturating_sub(fs_len + 1),
+                    inner.y,
+                    &fs_str,
+                    Style::default().fg(Color::DarkGray),
+                );
+            }
         }
 
         // Usage percentage and bar
@@ -230,11 +237,13 @@ impl Widget for ComputerViewWidget<'_> {
         let title_inner = title_block.inner(main_layout[0]);
         title_block.render(main_layout[0], buf);
 
-        let hint = "Select a drive to browse • ↑↓: Navigate • Enter: Open • Backspace: Return • g: Refresh";
+        let hint = "Select a drive | Up/Down: Navigate | Enter: Open | g: Refresh";
+        let max_hint_len = title_inner.width.saturating_sub(2) as usize;
+        let truncated_hint = truncate_str(hint, max_hint_len);
         buf.set_string(
             title_inner.x + 1,
             title_inner.y,
-            hint,
+            &truncated_hint,
             Style::default().fg(Color::DarkGray),
         );
 

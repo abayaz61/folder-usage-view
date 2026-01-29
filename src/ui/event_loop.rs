@@ -12,7 +12,7 @@ use ratatui::Terminal;
 
 use crate::app::{App, AppMode, ViewMode};
 use crate::model::get_all_drives;
-use crate::ui::widgets::{ComputerViewWidget, DriveListWidget, FileListWidget, HelpWidget, StatsWidget, TreemapWidget};
+use crate::ui::widgets::{AboutWidget, ComputerViewWidget, DriveListWidget, ErrorWidget, FileListWidget, HelpWidget, SettingsWidget, StatsWidget, TreemapWidget};
 
 const TICK_RATE: Duration = Duration::from_millis(16); // ~60 FPS
 
@@ -64,11 +64,11 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
 
     match app.mode {
         AppMode::Scanning => match key {
-            KeyCode::Char('q') | KeyCode::Esc => app.quit(),
+            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => app.quit(),
             // Allow navigation during scanning
-            KeyCode::Up | KeyCode::Char('k') => app.move_selection(-1),
-            KeyCode::Down | KeyCode::Char('j') => app.move_selection(1),
-            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => app.navigate_into(),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_selection(1),
+            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => app.navigate_into(),
             KeyCode::Backspace | KeyCode::Left => app.navigate_back(),
             KeyCode::Tab => app.toggle_view(),
             KeyCode::PageUp => app.move_selection(-10),
@@ -80,21 +80,23 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
                     app.selected_index = count - 1;
                 }
             }
-            KeyCode::Char('?') | KeyCode::Char('h') => app.toggle_help(),
-            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
+            KeyCode::Char('?') | KeyCode::Char('h') | KeyCode::Char('H') => app.toggle_help(),
+            KeyCode::Char('c') | KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
             _ => {}
         },
         AppMode::Browsing => match key {
-            KeyCode::Char('q') | KeyCode::Esc => app.quit(),
-            KeyCode::Char('?') | KeyCode::Char('h') => app.toggle_help(),
-            KeyCode::Char('g') => app.open_drive_selector(),
-            KeyCode::Up | KeyCode::Char('k') => app.move_selection(-1),
-            KeyCode::Down | KeyCode::Char('j') => app.move_selection(1),
-            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => app.navigate_into(),
+            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => app.quit(),
+            KeyCode::Char('?') | KeyCode::Char('h') | KeyCode::Char('H') => app.toggle_help(),
+            KeyCode::Char('a') | KeyCode::Char('A') => app.open_about(),
+            KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
+            KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_selection(1),
+            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => app.navigate_into(),
             KeyCode::Backspace | KeyCode::Left => app.navigate_back(),
             KeyCode::Tab => app.toggle_view(),
             KeyCode::Char(' ') => app.toggle_selection(),
-            KeyCode::Char('d') => app.confirm_delete(),
+            KeyCode::Char('d') | KeyCode::Char('D') => app.confirm_delete(),
             KeyCode::PageUp => app.move_selection(-10),
             KeyCode::PageDown => app.move_selection(10),
             KeyCode::Home => app.selected_index = 0,
@@ -104,17 +106,27 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
                     app.selected_index = count - 1;
                 }
             }
-            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
+            KeyCode::Char('c') | KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
             _ => {}
         },
         AppMode::Help => match key {
-            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('h') => {
+            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('h') | KeyCode::Char('H') => {
                 app.toggle_help()
             }
             _ => {}
         },
+        AppMode::About => match key {
+            _ => app.close_about(), // Any key closes about
+        },
+        AppMode::Settings => match key {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Char('s') | KeyCode::Char('S') => app.close_settings(),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_settings_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_settings_selection(1),
+            KeyCode::Enter | KeyCode::Char(' ') => app.toggle_current_setting(),
+            _ => {}
+        },
         AppMode::DeleteConfirm => match key {
-            KeyCode::Char('y') | KeyCode::Enter => {
+            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
                 let results = app.execute_delete();
                 let success_count = results.iter().filter(|(_, r)| r.is_ok()).count();
                 let fail_count = results.len() - success_count;
@@ -127,15 +139,15 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
                     app.message = Some(format!("Deleted {} items", success_count));
                 }
             }
-            KeyCode::Char('n') | KeyCode::Esc => app.cancel_delete(),
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => app.cancel_delete(),
             _ => {}
         },
         AppMode::DriveSelect => match key {
-            KeyCode::Esc | KeyCode::Char('q') => app.close_drive_selector(),
-            KeyCode::Up | KeyCode::Char('k') => app.move_drive_selection(-1),
-            KeyCode::Down | KeyCode::Char('j') => app.move_drive_selection(1),
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => app.close_drive_selector(),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection(1),
             KeyCode::Enter => app.select_drive(),
-            KeyCode::Char('g') => {
+            KeyCode::Char('g') | KeyCode::Char('G') => {
                 // Refresh drive list
                 app.drives = get_all_drives();
                 app.message = Some("Drive list refreshed".to_string());
@@ -143,17 +155,23 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
             _ => {}
         },
         AppMode::ComputerView => match key {
-            KeyCode::Char('q') | KeyCode::Esc => app.quit(),
-            KeyCode::Char('?') | KeyCode::Char('h') => app.toggle_help(),
-            KeyCode::Up | KeyCode::Char('k') => app.move_drive_selection(-1),
-            KeyCode::Down | KeyCode::Char('j') => app.move_drive_selection(1),
+            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => app.quit(),
+            KeyCode::Char('?') | KeyCode::Char('h') | KeyCode::Char('H') => app.toggle_help(),
+            KeyCode::Char('a') | KeyCode::Char('A') => app.open_about(),
+            KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection(1),
             KeyCode::Enter => app.navigate_into(),
-            KeyCode::Char('g') => {
+            KeyCode::Char('g') | KeyCode::Char('G') => {
                 // Refresh drive list
                 app.refresh_drives();
             }
-            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
+            KeyCode::Char('c') | KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
             _ => {}
+        },
+        AppMode::Error => {
+            // Any key dismisses error
+            app.dismiss_error();
         },
         AppMode::Quitting => {}
     }
@@ -177,8 +195,11 @@ fn render_ui(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     // Render overlays
     match app.mode {
         AppMode::Help => render_help_overlay(frame, area),
+        AppMode::About => render_about_overlay(frame, area),
+        AppMode::Settings => render_settings_overlay(frame, app, area),
         AppMode::DeleteConfirm => render_delete_confirm(frame, app, area),
         AppMode::DriveSelect => render_drive_selector(frame, app, area),
+        AppMode::Error => render_error_overlay(frame, app, area),
         _ => {}
     }
 }
@@ -191,7 +212,7 @@ fn render_header(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         .unwrap_or_else(|| app.config.target_path.display().to_string());
 
     let title = format!(
-        " Folder Usage View - {} ",
+        " Disk Usage Analyzer - {} ",
         crate::util::format::truncate_path(&current_path, area.width.saturating_sub(30) as usize)
     );
 
@@ -361,9 +382,9 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     let message = app.message.clone().unwrap_or_default();
 
     let help_text = if app.config.read_only {
-        "q:Quit ?:Help g:Drives Tab:View Enter:Open Backspace:Back [READ-ONLY]"
+        "q:Quit ?:Help a:About s:Settings g:Drives Tab:View [READ-ONLY]"
     } else {
-        "q:Quit ?:Help g:Drives Tab:View Enter:Open Backspace:Back Space:Select d:Delete"
+        "q:Quit ?:Help a:About s:Settings g:Drives Tab:View Space:Select d:Delete"
     };
 
     let footer = Paragraph::new(Line::from(vec![
@@ -394,6 +415,28 @@ fn render_help_overlay(frame: &mut ratatui::Frame, area: Rect) {
     let help_area = centered_rect(60, 70, area);
     frame.render_widget(Clear, help_area);
     frame.render_widget(help, help_area);
+}
+
+fn render_about_overlay(frame: &mut ratatui::Frame, area: Rect) {
+    let about = AboutWidget::new();
+    let about_area = centered_rect(50, 60, area);
+    frame.render_widget(Clear, about_area);
+    frame.render_widget(about, about_area);
+}
+
+fn render_settings_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let settings = SettingsWidget::new(app);
+    let settings_area = centered_rect(65, 70, area);
+    frame.render_widget(Clear, settings_area);
+    frame.render_widget(settings, settings_area);
+}
+
+fn render_error_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let message = app.error_message.as_deref().unwrap_or("Unknown error");
+    let error = ErrorWidget::new(message);
+    let error_area = centered_rect(60, 65, area);
+    frame.render_widget(Clear, error_area);
+    frame.render_widget(error, error_area);
 }
 
 fn render_delete_confirm(frame: &mut ratatui::Frame, app: &App, area: Rect) {

@@ -1,13 +1,19 @@
+pub mod about;
 pub mod computer_view;
 pub mod drives;
+pub mod error;
 pub mod file_list;
 pub mod help;
+pub mod settings;
 pub mod stats;
 pub mod treemap;
 
+pub use about::AboutWidget;
 pub use computer_view::ComputerViewWidget;
 pub use drives::DriveListWidget;
+pub use error::ErrorWidget;
 pub use file_list::FileListWidget;
 pub use help::HelpWidget;
+pub use settings::SettingsWidget;
 pub use stats::StatsWidget;
 pub use treemap::TreemapWidget;

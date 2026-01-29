@@ -7,6 +7,7 @@ use crate::model::{DriveInfo, FileTree, NodeId, get_all_drives};
 use crate::scanner::{ScanMessage, ScanProgress, ScanResult};
 
 use super::config::Config;
+use super::settings::Settings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
@@ -14,8 +15,11 @@ pub enum AppMode {
     Browsing,
     ComputerView,  // Root view showing all drives
     Help,
+    About,
+    Settings,
     DeleteConfirm,
     DriveSelect,
+    Error,  // Error display mode
     Quitting,
 }
 
@@ -29,6 +33,7 @@ pub enum ViewMode {
 pub struct App {
     pub config: Config,
     pub mode: AppMode,
+    pub previous_mode: AppMode,
     pub view_mode: ViewMode,
     pub tree: FileTree,
     pub current_node: Option<NodeId>,
@@ -45,13 +50,20 @@ pub struct App {
     pub drive_selected_index: usize,
     // Computer view state
     pub in_computer_view: bool,
+    // Settings
+    pub settings: Settings,
+    pub settings_selected_index: usize,
+    // Error handling
+    pub error_message: Option<String>,
 }
 
 impl App {
     pub fn new(config: Config) -> Self {
+        let settings = Settings::load();
         Self {
             config,
             mode: AppMode::Scanning,
+            previous_mode: AppMode::Scanning,
             view_mode: ViewMode::Split,
             tree: FileTree::new(),
             current_node: None,
@@ -66,7 +78,21 @@ impl App {
             drives: Vec::new(),
             drive_selected_index: 0,
             in_computer_view: false,
+            settings,
+            settings_selected_index: 0,
+            error_message: None,
         }
+    }
+
+    pub fn show_error(&mut self, message: String) {
+        self.error_message = Some(message);
+        self.previous_mode = self.get_base_mode();
+        self.mode = AppMode::Error;
+    }
+
+    pub fn dismiss_error(&mut self) {
+        self.error_message = None;
+        self.mode = self.previous_mode;
     }
 
     pub fn start_scan(&mut self) -> Sender<ScanMessage> {
@@ -406,5 +432,109 @@ impl App {
 
     pub fn clear_message(&mut self) {
         self.message = None;
+    }
+
+    // About methods
+    pub fn open_about(&mut self) {
+        self.previous_mode = self.get_base_mode();
+        self.mode = AppMode::About;
+    }
+
+    pub fn close_about(&mut self) {
+        self.mode = self.previous_mode;
+    }
+
+    // Settings methods
+    pub fn open_settings(&mut self) {
+        self.previous_mode = self.get_base_mode();
+        self.settings_selected_index = 0;
+        self.mode = AppMode::Settings;
+    }
+
+    pub fn close_settings(&mut self) {
+        self.mode = self.previous_mode;
+    }
+
+    pub fn move_settings_selection(&mut self, delta: i32) {
+        const SETTINGS_COUNT: usize = 3; // Number of settings options
+        let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
+        self.settings_selected_index = new_index;
+    }
+
+    pub fn toggle_current_setting(&mut self) {
+        use super::settings::{windows, StartupLocation};
+
+        match self.settings_selected_index {
+            0 => {
+                // Toggle context menu
+                if self.settings.context_menu_enabled {
+                    match windows::unregister_context_menu() {
+                        Ok(()) => {
+                            self.settings.context_menu_enabled = false;
+                            self.message = Some("Context menu removed".to_string());
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                } else {
+                    match windows::register_context_menu() {
+                        Ok(()) => {
+                            self.settings.context_menu_enabled = true;
+                            self.message = Some("Context menu registered".to_string());
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                }
+            }
+            1 => {
+                // Cycle startup location
+                self.settings.startup_location = match self.settings.startup_location {
+                    StartupLocation::LastLocation => StartupLocation::CurrentFolder,
+                    StartupLocation::CurrentFolder => StartupLocation::ComputerView,
+                    StartupLocation::ComputerView => StartupLocation::LastLocation,
+                };
+                self.message = Some(format!("Startup: {:?}", self.settings.startup_location));
+            }
+            2 => {
+                // Toggle PATH registration
+                if self.settings.path_registered {
+                    match windows::unregister_from_path() {
+                        Ok(()) => {
+                            self.settings.path_registered = false;
+                            self.message = Some("Removed from PATH".to_string());
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                } else {
+                    match windows::register_to_path() {
+                        Ok(()) => {
+                            self.settings.path_registered = true;
+                            self.message = Some("Registered to PATH".to_string());
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        // Save settings after change
+        let _ = self.settings.save();
+    }
+
+    fn get_base_mode(&self) -> AppMode {
+        if self.in_computer_view {
+            AppMode::ComputerView
+        } else if self.is_scanning() {
+            AppMode::Scanning
+        } else {
+            AppMode::Browsing
+        }
     }
 }

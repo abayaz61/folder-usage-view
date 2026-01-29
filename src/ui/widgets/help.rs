@@ -91,6 +91,14 @@ impl Widget for HelpWidget {
                 Span::styled("Toggle this help", desc_style),
             ]),
             Line::from(vec![
+                Span::styled("  a        ", key_style),
+                Span::styled("About", desc_style),
+            ]),
+            Line::from(vec![
+                Span::styled("  s        ", key_style),
+                Span::styled("Settings", desc_style),
+            ]),
+            Line::from(vec![
                 Span::styled("  q/Esc    ", key_style),
                 Span::styled("Quit application", desc_style),
             ]),

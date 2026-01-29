@@ -58,3 +58,42 @@ pub fn truncate_path(path: &str, max_len: usize) -> String {
     let end: String = path.chars().skip(char_count - end_len).collect();
     format!("{}...{}", start, end)
 }
+
+/// Safely truncate a string to max_len characters (not bytes)
+/// Appends "..." if truncated
+pub fn truncate_str(s: &str, max_len: usize) -> String {
+    let char_count = s.chars().count();
+    if char_count <= max_len {
+        s.to_string()
+    } else if max_len <= 3 {
+        s.chars().take(max_len).collect()
+    } else {
+        let truncated: String = s.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
+    }
+}
+
+/// Safely truncate a string and pad to exact width
+pub fn truncate_and_pad(s: &str, width: usize) -> String {
+    let char_count = s.chars().count();
+    if char_count == width {
+        s.to_string()
+    } else if char_count < width {
+        format!("{}{}", s, " ".repeat(width - char_count))
+    } else if width <= 3 {
+        s.chars().take(width).collect()
+    } else {
+        let truncated: String = s.chars().take(width - 3).collect();
+        format!("{}...", truncated)
+    }
+}
+
+/// Get character count (not byte count)
+pub fn char_len(s: &str) -> usize {
+    s.chars().count()
+}
+
+/// Safe substring by character indices
+pub fn safe_substring(s: &str, start: usize, end: usize) -> String {
+    s.chars().skip(start).take(end - start).collect()
+}

@@ -1,10 +1,15 @@
 [package]
-name = "folder-usage-view"
-version = "0.1.0"
+name = "disk-usage-analyzer"
+version = "1.0.0"
 edition = "2021"
 description = "Ultra high-performance disk usage analyzer with TUI and treemap visualization"
-authors = ["Developer"]
+authors = ["Codegen <abayaz61@gmail.com>"]
 license = "MIT"
+build = "build.rs"
+
+[[bin]]
+name = "dua"
+path = "src/main.rs"
 
 [dependencies]
 # TUI Framework
@@ -37,9 +42,16 @@ chrono = "0.4"
 mime_guess = "2.0"
 unicode-width = "0.2"
 
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
 # Error Handling
 thiserror = "2"
 anyhow = "1.0"
+
+[build-dependencies]
+winres = "0.1"
 
 [profile.release]
 lto = true
