@@ -325,12 +325,18 @@ impl App {
             AppMode::Help => {
                 if self.in_computer_view {
                     AppMode::ComputerView
+                } else if self.is_scanning() {
+                    AppMode::Scanning
                 } else {
                     AppMode::Browsing
                 }
             }
             _ => AppMode::Help,
         };
+    }
+
+    pub fn is_scanning(&self) -> bool {
+        self.scan_rx.is_some() && self.scan_result.is_none()
     }
 
     // Drive selection methods

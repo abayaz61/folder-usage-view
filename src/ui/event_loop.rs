@@ -65,6 +65,23 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
     match app.mode {
         AppMode::Scanning => match key {
             KeyCode::Char('q') | KeyCode::Esc => app.quit(),
+            // Allow navigation during scanning
+            KeyCode::Up | KeyCode::Char('k') => app.move_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => app.move_selection(1),
+            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => app.navigate_into(),
+            KeyCode::Backspace | KeyCode::Left => app.navigate_back(),
+            KeyCode::Tab => app.toggle_view(),
+            KeyCode::PageUp => app.move_selection(-10),
+            KeyCode::PageDown => app.move_selection(10),
+            KeyCode::Home => app.selected_index = 0,
+            KeyCode::End => {
+                let count = app.get_current_children().len();
+                if count > 0 {
+                    app.selected_index = count - 1;
+                }
+            }
+            KeyCode::Char('?') | KeyCode::Char('h') => app.toggle_help(),
+            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
             _ => {}
         },
         AppMode::Browsing => match key {
@@ -199,7 +216,19 @@ fn render_header(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
 fn render_content(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     match app.mode {
-        AppMode::Scanning => render_scanning(frame, app, area),
+        AppMode::Scanning => {
+            // Split view: show progress on top, content below
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(8),  // Progress bar
+                    Constraint::Min(5),     // Content
+                ])
+                .split(area);
+
+            render_scanning_compact(frame, app, layout[0]);
+            render_main_view(frame, app, layout[1]);
+        }
         AppMode::ComputerView => {
             let computer_view = ComputerViewWidget::new(app);
             frame.render_widget(computer_view, area);
@@ -208,21 +237,16 @@ fn render_content(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     }
 }
 
-fn render_scanning(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+fn render_scanning_compact(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     let progress = app.scan_progress.as_ref();
 
     let text = if let Some(p) = progress {
         let elapsed = format!("{:.1}s", p.elapsed.as_secs_f64());
-        let speed = format!("{:.0} items/s", p.entries_per_second);
+        let speed = format!("{:.0}/s", p.entries_per_second);
 
         vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                "Scanning...",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
             Line::from(vec![
+                Span::styled(" ● Scanning ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
                 Span::raw("Files: "),
                 Span::styled(
                     crate::util::format::format_count(p.files_scanned),
@@ -233,39 +257,36 @@ fn render_scanning(frame: &mut ratatui::Frame, app: &App, area: Rect) {
                     crate::util::format::format_count(p.dirs_scanned),
                     Style::default().fg(Color::Blue),
                 ),
-            ]),
-            Line::from(vec![
-                Span::raw("Size: "),
+                Span::raw("  Size: "),
                 Span::styled(
                     crate::util::format::format_size(p.total_size),
                     Style::default().fg(Color::Cyan),
                 ),
-            ]),
-            Line::from(vec![
-                Span::raw("Time: "),
+                Span::raw("  Time: "),
                 Span::styled(elapsed, Style::default().fg(Color::Magenta)),
                 Span::raw("  Speed: "),
                 Span::styled(speed, Style::default().fg(Color::Yellow)),
             ]),
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::util::format::truncate_path(
-                    &p.current_path.display().to_string(),
-                    area.width.saturating_sub(4) as usize,
+            Line::from(vec![
+                Span::styled("   ", Style::default()),
+                Span::styled(
+                    crate::util::format::truncate_path(
+                        &p.current_path.display().to_string(),
+                        area.width.saturating_sub(6) as usize,
+                    ),
+                    Style::default().fg(Color::DarkGray),
                 ),
-                Style::default().fg(Color::DarkGray),
-            )),
+            ]),
             Line::from(""),
             Line::from(Span::styled(
-                "Press 'q' to cancel",
+                " ↑↓: Navigate  Enter: Open  Tab: View  q: Cancel scan",
                 Style::default().fg(Color::DarkGray),
             )),
         ]
     } else {
         vec![
-            Line::from(""),
             Line::from(Span::styled(
-                "Starting scan...",
+                " ● Starting scan...",
                 Style::default().fg(Color::Yellow),
             )),
         ]
@@ -275,10 +296,10 @@ fn render_scanning(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" Progress ")
-                .border_style(Style::default().fg(super::theme::Theme::border_color())),
-        )
-        .alignment(ratatui::layout::Alignment::Center);
+                .title(" Scanning in Progress ")
+                .title_style(Style::default().fg(Color::Yellow))
+                .border_style(Style::default().fg(Color::Yellow)),
+        );
 
     frame.render_widget(paragraph, area);
 }
