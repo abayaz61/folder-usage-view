@@ -154,12 +154,9 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
         },
         AppMode::DriveSelect => match key {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => app.close_drive_selector(),
-            // Grid navigation: Up/Down move vertically
-            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection_vertical(-1, drive_cols),
-            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection_vertical(1, drive_cols),
-            // Left/Right move horizontally
-            KeyCode::Left => app.move_drive_selection(-1),
-            KeyCode::Right => app.move_drive_selection(1),
+            // Simple list navigation (popup shows drives as vertical list)
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection(1),
             KeyCode::Enter => app.select_drive(),
             KeyCode::Char('g') | KeyCode::Char('G') => {
                 // Refresh drive list
