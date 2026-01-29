@@ -19,6 +19,7 @@ const TICK_RATE: Duration = Duration::from_millis(16); // ~60 FPS
 /// Result of run_app: None means quit, Some(path) means rescan with new path
 pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<Option<PathBuf>> {
     let mut last_tick = Instant::now();
+    let mut terminal_width: u16 = 80;
 
     loop {
         // Process scanner messages
@@ -32,6 +33,7 @@ pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut 
         // Render
         terminal.draw(|frame| {
             let area = frame.area();
+            terminal_width = area.width;
             render_ui(frame, app, area);
         })?;
 
@@ -43,7 +45,7 @@ pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut 
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    handle_key_event(app, key.code, key.modifiers);
+                    handle_key_event(app, key.code, key.modifiers, terminal_width);
                 }
             }
         }
@@ -58,9 +60,17 @@ pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut 
     }
 }
 
-fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
+/// Calculate grid columns for drive view based on width
+fn get_drive_grid_cols(width: u16) -> usize {
+    if width > 120 { 3 } else if width > 80 { 2 } else { 1 }
+}
+
+fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, terminal_width: u16) {
     // Clear any existing message on key press
     app.clear_message();
+
+    // Calculate grid columns for drive views
+    let drive_cols = get_drive_grid_cols(terminal_width);
 
     match app.mode {
         AppMode::Scanning => match key {
@@ -144,8 +154,12 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
         },
         AppMode::DriveSelect => match key {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => app.close_drive_selector(),
-            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection(-1),
-            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection(1),
+            // Grid navigation: Up/Down move vertically
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection_vertical(-1, drive_cols),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection_vertical(1, drive_cols),
+            // Left/Right move horizontally
+            KeyCode::Left => app.move_drive_selection(-1),
+            KeyCode::Right => app.move_drive_selection(1),
             KeyCode::Enter => app.select_drive(),
             KeyCode::Char('g') | KeyCode::Char('G') => {
                 // Refresh drive list
@@ -159,8 +173,12 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers) {
             KeyCode::Char('?') | KeyCode::Char('h') | KeyCode::Char('H') => app.toggle_help(),
             KeyCode::Char('a') | KeyCode::Char('A') => app.open_about(),
             KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
-            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection(-1),
-            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection(1),
+            // Grid navigation: Up/Down move vertically (by column count)
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection_vertical(-1, drive_cols),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection_vertical(1, drive_cols),
+            // Left/Right move horizontally (by 1)
+            KeyCode::Left => app.move_drive_selection(-1),
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => app.move_drive_selection(1),
             KeyCode::Enter => app.navigate_into(),
             KeyCode::Char('g') | KeyCode::Char('G') => {
                 // Refresh drive list

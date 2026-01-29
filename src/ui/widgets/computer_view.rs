@@ -237,7 +237,7 @@ impl Widget for ComputerViewWidget<'_> {
         let title_inner = title_block.inner(main_layout[0]);
         title_block.render(main_layout[0], buf);
 
-        let hint = "Select a drive | Up/Down: Navigate | Enter: Open | g: Refresh";
+        let hint = "Select a drive | Arrows: Navigate | Enter: Open | g: Refresh";
         let max_hint_len = title_inner.width.saturating_sub(2) as usize;
         let truncated_hint = truncate_str(hint, max_hint_len);
         buf.set_string(

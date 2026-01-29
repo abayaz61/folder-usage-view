@@ -398,6 +398,17 @@ impl App {
         self.drive_selected_index = new_index;
     }
 
+    /// Move drive selection vertically in grid (by column count)
+    pub fn move_drive_selection_vertical(&mut self, direction: i32, cols: usize) {
+        if self.drives.is_empty() || cols == 0 {
+            return;
+        }
+        let len = self.drives.len() as i32;
+        let delta = direction * cols as i32;
+        let new_index = (self.drive_selected_index as i32 + delta).rem_euclid(len) as usize;
+        self.drive_selected_index = new_index;
+    }
+
     pub fn select_drive(&mut self) {
         if self.drive_selected_index < self.drives.len() {
             let drive = &self.drives[self.drive_selected_index];
