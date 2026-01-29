@@ -1,0 +1,48 @@
+[package]
+name = "folder-usage-view"
+version = "0.1.0"
+edition = "2021"
+description = "Ultra high-performance disk usage analyzer with TUI and treemap visualization"
+authors = ["Developer"]
+license = "MIT"
+
+[dependencies]
+# TUI Framework
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Parallel Filesystem Traversal
+jwalk = "0.8"
+rayon = "1.10"
+
+# Data Structures
+slotmap = "1.0"
+smallvec = "1.13"
+indexmap = "2.0"
+
+# Thread Communication
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# System
+num_cpus = "1.16"
+sysinfo = "0.32"
+
+# Utilities
+humansize = "2.1"
+chrono = "0.4"
+mime_guess = "2.0"
+unicode-width = "0.2"
+
+# Error Handling
+thiserror = "2"
+anyhow = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true

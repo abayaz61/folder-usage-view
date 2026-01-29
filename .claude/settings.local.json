@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:crates.io)",
+      "WebFetch(domain:docs.rs)",
+      "Bash(cargo init:*)",
+      "Bash(cargo build:*)",
+      "Bash(\"E:/AI Projects/folder-usage-view/target/release/folder-usage-view.exe\" --help)"
+    ]
+  }
+}
