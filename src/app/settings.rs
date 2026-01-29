@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::app::state::ViewMode;
 use crate::ui::theme::ColorPalette;
 use crate::util::i18n::Language;
 
@@ -31,6 +32,8 @@ pub struct Settings {
     pub color_palette: ColorPalette,
     #[serde(default)]
     pub use_ascii_icons: bool,
+    #[serde(default)]
+    pub view_mode: ViewMode,
 }
 
 impl Default for Settings {
@@ -42,6 +45,7 @@ impl Default for Settings {
             language: Language::default(),
             color_palette: ColorPalette::default(),
             use_ascii_icons: false,
+            view_mode: ViewMode::default(),
         }
     }
 }

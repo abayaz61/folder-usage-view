@@ -24,8 +24,9 @@ pub enum AppMode {
     Quitting,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ViewMode {
+    #[default]
     Treemap,
     List,
     Split,
@@ -93,11 +94,12 @@ pub struct App {
 impl App {
     pub fn new(config: Config) -> Self {
         let settings = Settings::load();
+        let view_mode = settings.view_mode;
         Self {
             config,
             mode: AppMode::Scanning,
             previous_mode: AppMode::Scanning,
-            view_mode: ViewMode::Split,
+            view_mode,
             tree: FileTree::new(),
             current_node: None,
             selected_index: 0,
@@ -408,6 +410,9 @@ impl App {
             ViewMode::List => ViewMode::Split,
             ViewMode::Split => ViewMode::Treemap,
         };
+        // Save view mode preference
+        self.settings.view_mode = self.view_mode;
+        let _ = self.settings.save();
     }
 
     pub fn toggle_selection(&mut self) {
