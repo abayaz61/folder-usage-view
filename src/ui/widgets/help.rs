@@ -71,6 +71,10 @@ impl Widget for HelpWidget {
                 Span::styled("  o        ", key_style),
                 Span::styled(s.get("help.sort_toggle").to_string(), desc_style),
             ]),
+            Line::from(vec![
+                Span::styled("  e        ", key_style),
+                Span::styled(s.get("help.open_explorer").to_string(), desc_style),
+            ]),
             Line::from(""),
             Line::from(Span::styled(s.get("help.actions").to_string(), section_style)),
             Line::from(vec![

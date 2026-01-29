@@ -188,6 +188,42 @@ impl App {
         self.message = Some(format!("Sort: {}", self.sort_mode.label()));
     }
 
+    pub fn open_in_explorer(&mut self) {
+        let path = if self.in_computer_view {
+            // In computer view, open selected drive
+            if self.drive_selected_index < self.drives.len() {
+                self.drives[self.drive_selected_index].mount_point.clone()
+            } else {
+                return;
+            }
+        } else if let Some(current) = self.current_node {
+            // Get current directory path
+            if let Some(path) = self.tree.get_path(current) {
+                path
+            } else {
+                self.config.target_path.clone()
+            }
+        } else {
+            self.config.target_path.clone()
+        };
+
+        // Open in Windows Explorer
+        #[cfg(target_os = "windows")]
+        {
+            use std::process::Command;
+            if let Err(e) = Command::new("explorer").arg(&path).spawn() {
+                self.message = Some(format!("Failed to open Explorer: {}", e));
+            } else {
+                self.message = Some(format!("Opened: {}", path.display()));
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            self.message = Some("Explorer is only available on Windows".to_string());
+        }
+    }
+
     pub fn navigate_into(&mut self) {
         if self.in_computer_view {
             // In computer view, select drive

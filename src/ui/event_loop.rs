@@ -117,6 +117,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
             KeyCode::Char('o') | KeyCode::Char('O') => app.cycle_sort_mode(),
+            KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
             KeyCode::Char('c') | KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
             _ => {}
         },
@@ -126,6 +127,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('a') | KeyCode::Char('A') => app.open_about(),
             KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
+            KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_selection(-1),
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_selection(1),
             KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => app.navigate_into(),
@@ -197,6 +199,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('?') | KeyCode::Char('h') | KeyCode::Char('H') => app.toggle_help(),
             KeyCode::Char('a') | KeyCode::Char('A') => app.open_about(),
             KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
+            KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
             // Grid navigation: Up/Down move vertically (by column count)
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_drive_selection_vertical(-1, drive_cols),
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_drive_selection_vertical(1, drive_cols),
@@ -322,6 +325,7 @@ fn handle_mouse_event(
                             }
                             "view" => app.toggle_view(),
                             "sort" => app.cycle_sort_mode(),
+                            "explorer" => app.open_in_explorer(),
                             "select" => {
                                 if !app.config.read_only {
                                     app.toggle_selection();
@@ -719,6 +723,13 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
     ));
 
+    spans.push(Span::raw(" "));
+
+    // Explorer button
+    spans.push(Span::styled(" ", menu_style));
+    spans.push(Span::styled("e", key_style));
+    spans.push(Span::styled(format!("{} ", s.get("footer.explorer")), menu_style));
+
     if !app.config.read_only {
         spans.push(Span::raw(" "));
         spans.push(Span::styled(" ", menu_style));
@@ -803,6 +814,11 @@ fn get_menu_positions(app: &App) -> Vec<(u16, u16, &'static str)> {
     let sort_len = 2 + display_width(s.get("footer.sort")) + 1 + display_width(app.sort_mode.label()) + 2;
     positions.push((x, x + sort_len, "sort"));
     x += sort_len + 1;
+
+    // eExplorer: " " + "e" + "text "
+    let explorer_len = 2 + display_width(s.get("footer.explorer")) + 1;
+    positions.push((x, x + explorer_len, "explorer"));
+    x += explorer_len + 1;
 
     if !app.config.read_only {
         // SpSelect: " " + "Sp" + "text "
