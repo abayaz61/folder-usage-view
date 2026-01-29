@@ -131,11 +131,16 @@ impl Widget for SettingsWidget<'_> {
         } else {
             s.get("settings.not_registered")
         };
+        let path_desc = if path_enabled {
+            windows::get_install_path().display().to_string()
+        } else {
+            s.get("settings.path_reg_desc").to_string()
+        };
         lines.extend(self.render_option(
             2,
             s.get("settings.path_reg"),
             path_value,
-            s.get("settings.path_reg_desc"),
+            &path_desc,
             path_enabled,
         ));
 
@@ -146,11 +151,16 @@ impl Widget for SettingsWidget<'_> {
         } else {
             s.get("settings.not_created")
         };
+        let start_menu_desc = if start_menu_enabled {
+            windows::get_start_menu_path().join("Disk Usage Analyzer.lnk").display().to_string()
+        } else {
+            s.get("settings.start_menu_desc").to_string()
+        };
         lines.extend(self.render_option(
             3,
             s.get("settings.start_menu"),
             start_menu_value,
-            s.get("settings.start_menu_desc"),
+            &start_menu_desc,
             start_menu_enabled,
         ));
 
@@ -161,11 +171,16 @@ impl Widget for SettingsWidget<'_> {
         } else {
             s.get("settings.not_created")
         };
+        let desktop_desc = if desktop_enabled {
+            windows::get_desktop_path().join("Disk Usage Analyzer.lnk").display().to_string()
+        } else {
+            s.get("settings.desktop_desc").to_string()
+        };
         lines.extend(self.render_option(
             4,
             s.get("settings.desktop"),
             desktop_value,
-            s.get("settings.desktop_desc"),
+            &desktop_desc,
             desktop_enabled,
         ));
 
