@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, Borders, Widget};
 use crate::app::App;
 use crate::ui::theme::Theme;
 use crate::util::format::format_size;
+use crate::util::i18n::Strings;
 
 pub struct FileListWidget<'a> {
     app: &'a App,
@@ -19,9 +20,11 @@ impl<'a> FileListWidget<'a> {
 
 impl Widget for FileListWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let s = Strings::new(self.app.settings.language);
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" Files ")
+            .title(format!(" {} ", s.get("filelist.title")))
             .border_style(Style::default().fg(Theme::border_color()));
 
         let inner = block.inner(area);
@@ -33,10 +36,10 @@ impl Widget for FileListWidget<'_> {
 
         let children = self.app.get_current_children();
         if children.is_empty() {
-            let msg = "No items";
+            let msg = s.get("filelist.empty");
             let x = inner.x + (inner.width.saturating_sub(msg.len() as u16)) / 2;
             let y = inner.y + inner.height / 2;
-            buf.set_string(x, y, msg, Style::default().fg(Color::DarkGray));
+            buf.set_string(x, y, &msg, Style::default().fg(Color::DarkGray));
             return;
         }
 

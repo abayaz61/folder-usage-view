@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 use crate::app::App;
 use crate::ui::theme::Theme;
 use crate::util::format::{format_count, format_size};
+use crate::util::i18n::Strings;
 
 pub struct StatsWidget<'a> {
     app: &'a App,
@@ -20,9 +21,11 @@ impl<'a> StatsWidget<'a> {
 
 impl Widget for StatsWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let s = Strings::new(self.app.settings.language);
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" Statistics ")
+            .title(format!(" {} ", s.get("stats.title")))
             .border_style(Style::default().fg(Theme::border_color()));
 
         let inner = block.inner(area);
@@ -48,13 +51,13 @@ impl Widget for StatsWidget<'_> {
         render_summary(self.app, buf, layout[0]);
 
         // Separator
-        render_separator(buf, layout[1], "Category Breakdown");
+        render_separator(buf, layout[1], s.get("stats.file_types"));
 
         // Category breakdown
         render_categories(self.app, buf, layout[2]);
 
         // Separator
-        render_separator(buf, layout[3], "Largest Files");
+        render_separator(buf, layout[3], s.get("stats.largest_files"));
 
         // Largest files
         render_largest_files(self.app, buf, layout[4]);
@@ -62,33 +65,27 @@ impl Widget for StatsWidget<'_> {
 }
 
 fn render_summary(app: &App, buf: &mut Buffer, area: Rect) {
+    let s = Strings::new(app.settings.language);
     let stats = &app.tree.statistics;
 
     let lines = vec![
         Line::from(vec![
-            Span::raw("Total Size: "),
+            Span::raw(format!("{} ", s.get("stats.total_size"))),
             Span::styled(
                 format_size(stats.total_size),
                 Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
-            Span::raw("Files: "),
+            Span::raw(format!("{} ", s.get("stats.files"))),
             Span::styled(
                 format_count(stats.total_files),
                 Style::default().fg(Color::Green),
             ),
-            Span::raw("  Dirs: "),
+            Span::raw(format!("  {} ", s.get("stats.directories"))),
             Span::styled(
                 format_count(stats.total_dirs),
                 Style::default().fg(Color::Blue),
-            ),
-        ]),
-        Line::from(vec![
-            Span::raw("Nodes: "),
-            Span::styled(
-                format_count(app.tree.total_nodes() as u64),
-                Style::default().fg(Color::Magenta),
             ),
         ]),
     ];

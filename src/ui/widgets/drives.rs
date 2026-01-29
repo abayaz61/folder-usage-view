@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 use crate::app::App;
 use crate::ui::theme::Theme;
 use crate::util::format::format_size;
+use crate::util::i18n::Strings;
 
 pub struct DriveListWidget<'a> {
     app: &'a App,
@@ -20,9 +21,11 @@ impl<'a> DriveListWidget<'a> {
 
 impl Widget for DriveListWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let s = Strings::new(self.app.settings.language);
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" Select Drive - Press Enter to confirm, Esc to cancel ")
+            .title(format!(" {} ", s.get("drive_select.title")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .border_style(Style::default().fg(Theme::highlight_color()));
 
@@ -30,11 +33,11 @@ impl Widget for DriveListWidget<'_> {
         block.render(area, buf);
 
         if self.app.drives.is_empty() {
-            let msg = "No drives found";
+            let msg = s.get("drive_select.no_drives");
             buf.set_string(
                 inner.x + (inner.width.saturating_sub(msg.len() as u16)) / 2,
                 inner.y + inner.height / 2,
-                msg,
+                &msg,
                 Style::default().fg(Color::DarkGray),
             );
             return;
@@ -118,7 +121,7 @@ impl Widget for DriveListWidget<'_> {
                     style.fg(Color::Yellow),
                 ),
                 Span::styled(
-                    format!("  {} / {} (Free: {})", used_str, total_str, free_str),
+                    format!("  {} / {} ({}: {})", used_str, total_str, s.get("drive.free"), free_str),
                     style.fg(Color::White),
                 ),
             ]));
@@ -130,7 +133,7 @@ impl Widget for DriveListWidget<'_> {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::styled(
-                "  ↑/↓: Navigate   Enter: Select   Esc: Cancel   g: Refresh",
+                format!("  {}", s.get("drive_select.hint")),
                 Style::default().fg(Color::DarkGray),
             ),
         ]));

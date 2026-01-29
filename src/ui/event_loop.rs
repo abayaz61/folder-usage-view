@@ -13,6 +13,7 @@ use ratatui::Terminal;
 use crate::app::{App, AppMode, ViewMode};
 use crate::model::get_all_drives;
 use crate::ui::widgets::{AboutWidget, ComputerViewWidget, DriveListWidget, ErrorWidget, FileListWidget, HelpWidget, SettingsWidget, StatsWidget, TreemapWidget};
+use crate::util::i18n::Strings;
 
 const TICK_RATE: Duration = Duration::from_millis(16); // ~60 FPS
 
@@ -220,6 +221,7 @@ fn render_ui(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 }
 
 fn render_header(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let s = Strings::new(app.settings.language);
     let current_path = app
         .current_node
         .and_then(|id| app.tree.get_path(id))
@@ -227,8 +229,9 @@ fn render_header(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         .unwrap_or_else(|| app.config.target_path.display().to_string());
 
     let title = format!(
-        " Disk Usage Analyzer - {} ",
-        crate::util::format::truncate_path(&current_path, area.width.saturating_sub(30) as usize)
+        " {} - {} ",
+        s.get("app.title"),
+        crate::util::format::truncate_path(&current_path, area.width.saturating_sub(35) as usize)
     );
 
     let stats = app.tree.get(app.current_node.unwrap_or_default());
@@ -274,6 +277,7 @@ fn render_content(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 }
 
 fn render_scanning_compact(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let s = Strings::new(app.settings.language);
     let progress = app.scan_progress.as_ref();
 
     let text = if let Some(p) = progress {
@@ -282,25 +286,25 @@ fn render_scanning_compact(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
         vec![
             Line::from(vec![
-                Span::styled(" ● Scanning ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                Span::raw("Files: "),
+                Span::styled(format!(" ● {} ", s.get("scan.scanning")), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::raw(format!("{} ", s.get("scan.files"))),
                 Span::styled(
                     crate::util::format::format_count(p.files_scanned),
                     Style::default().fg(Color::Green),
                 ),
-                Span::raw("  Dirs: "),
+                Span::raw(format!("  {} ", s.get("scan.dirs"))),
                 Span::styled(
                     crate::util::format::format_count(p.dirs_scanned),
                     Style::default().fg(Color::Blue),
                 ),
-                Span::raw("  Size: "),
+                Span::raw(format!("  {} ", s.get("scan.size"))),
                 Span::styled(
                     crate::util::format::format_size(p.total_size),
                     Style::default().fg(Color::Cyan),
                 ),
-                Span::raw("  Time: "),
+                Span::raw(format!("  {} ", s.get("scan.time"))),
                 Span::styled(elapsed, Style::default().fg(Color::Magenta)),
-                Span::raw("  Speed: "),
+                Span::raw(format!("  {} ", s.get("scan.speed"))),
                 Span::styled(speed, Style::default().fg(Color::Yellow)),
             ]),
             Line::from(vec![
@@ -315,14 +319,14 @@ fn render_scanning_compact(frame: &mut ratatui::Frame, app: &App, area: Rect) {
             ]),
             Line::from(""),
             Line::from(Span::styled(
-                " ↑↓: Navigate  Enter: Open  Tab: View  q: Cancel scan",
+                format!(" {}", s.get("scan.hint")),
                 Style::default().fg(Color::DarkGray),
             )),
         ]
     } else {
         vec![
             Line::from(Span::styled(
-                " ● Starting scan...",
+                format!(" ● {}", s.get("scan.starting")),
                 Style::default().fg(Color::Yellow),
             )),
         ]
@@ -332,7 +336,7 @@ fn render_scanning_compact(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" Scanning in Progress ")
+                .title(format!(" {} ", s.get("app.scanning")))
                 .title_style(Style::default().fg(Color::Yellow))
                 .border_style(Style::default().fg(Color::Yellow)),
         );
@@ -381,6 +385,7 @@ fn render_main_view(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 }
 
 fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let s = Strings::new(app.settings.language);
     let mode_str = match app.view_mode {
         ViewMode::Treemap => "TREEMAP",
         ViewMode::List => "LIST",
@@ -389,7 +394,7 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
     let selected_count = app.tree.get_selected().len();
     let selected_str = if selected_count > 0 {
-        format!(" | {} selected", selected_count)
+        format!(" | {} {}", selected_count, s.get("footer.selected"))
     } else {
         String::new()
     };
@@ -397,9 +402,15 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     let message = app.message.clone().unwrap_or_default();
 
     let help_text = if app.config.read_only {
-        "q:Quit ?:Help a:About s:Settings g:Drives Tab:View [READ-ONLY]"
+        format!("q:{} ?:{} a:{} s:{} g:{} Tab:{} [{}]",
+            s.get("footer.quit"), s.get("footer.help"), s.get("footer.about"),
+            s.get("footer.settings"), s.get("footer.drives"), s.get("footer.view"),
+            s.get("footer.read_only"))
     } else {
-        "q:Quit ?:Help a:About s:Settings g:Drives Tab:View Space:Select d:Delete"
+        format!("q:{} ?:{} a:{} s:{} g:{} Tab:{} Space:{} d:{}",
+            s.get("footer.quit"), s.get("footer.help"), s.get("footer.about"),
+            s.get("footer.settings"), s.get("footer.drives"), s.get("footer.view"),
+            s.get("footer.select"), s.get("footer.delete"))
     };
 
     let footer = Paragraph::new(Line::from(vec![
@@ -448,39 +459,41 @@ fn render_settings_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
 fn render_error_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     let message = app.error_message.as_deref().unwrap_or("Unknown error");
-    let error = ErrorWidget::new(message);
+    let error = ErrorWidget::new(message, app.settings.language);
     let error_area = centered_rect(60, 65, area);
     frame.render_widget(Clear, error_area);
     frame.render_widget(error, error_area);
 }
 
 fn render_delete_confirm(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let s = Strings::new(app.settings.language);
     let selected = app.get_selected_for_deletion();
     let total_size: u64 = selected.iter().map(|(_, _, s)| s).sum();
 
     let text = vec![
         Line::from(""),
         Line::from(Span::styled(
-            "Confirm Deletion",
+            s.get("delete.confirm").to_string(),
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from(format!("Items to delete: {}", selected.len())),
+        Line::from(format!("{} {}", s.get("delete.items"), selected.len())),
         Line::from(format!(
-            "Total size: {}",
+            "{} {}",
+            s.get("delete.total_size"),
             crate::util::format::format_size(total_size)
         )),
         Line::from(""),
         Line::from(Span::styled(
-            "This action cannot be undone!",
+            s.get("delete.warning").to_string(),
             Style::default().fg(Color::Yellow),
         )),
         Line::from(""),
         Line::from(vec![
             Span::styled("[Y]", Style::default().fg(Color::Green)),
-            Span::raw(" Confirm  "),
+            Span::raw(format!(" {}  ", s.get("delete.yes"))),
             Span::styled("[N]", Style::default().fg(Color::Red)),
-            Span::raw(" Cancel"),
+            Span::raw(format!(" {}", s.get("delete.no"))),
         ]),
     ];
 
@@ -488,7 +501,7 @@ fn render_delete_confirm(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" Delete Confirmation ")
+                .title(format!(" {} ", s.get("delete.title")))
                 .border_style(Style::default().fg(Color::Red)),
         )
         .alignment(ratatui::layout::Alignment::Center)

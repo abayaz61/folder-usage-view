@@ -7,6 +7,7 @@ use crate::app::App;
 use crate::model::NodeId;
 use crate::treemap::{LayoutRect, TreemapLayout};
 use crate::ui::theme::Theme;
+use crate::util::i18n::Strings;
 
 pub struct TreemapWidget<'a> {
     app: &'a App,
@@ -20,9 +21,11 @@ impl<'a> TreemapWidget<'a> {
 
 impl Widget for TreemapWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let s = Strings::new(self.app.settings.language);
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" Treemap ")
+            .title(format!(" {} ", s.get("treemap.title")))
             .border_style(Style::default().fg(Theme::border_color()));
 
         let inner = block.inner(area);
@@ -39,10 +42,10 @@ impl Widget for TreemapWidget<'_> {
         // Get children for treemap
         let children = self.app.tree.get_children_sorted_by_size(current_id);
         if children.is_empty() {
-            let msg = "Empty directory";
+            let msg = s.get("filelist.empty");
             let x = inner.x + (inner.width.saturating_sub(msg.len() as u16)) / 2;
             let y = inner.y + inner.height / 2;
-            buf.set_string(x, y, msg, Style::default().fg(Color::DarkGray));
+            buf.set_string(x, y, &msg, Style::default().fg(Color::DarkGray));
             return;
         }
 

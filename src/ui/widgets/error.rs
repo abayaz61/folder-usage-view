@@ -5,22 +5,26 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::util::format::truncate_str;
+use crate::util::i18n::{Language, Strings};
 
 pub struct ErrorWidget<'a> {
     message: &'a str,
+    lang: Language,
 }
 
 impl<'a> ErrorWidget<'a> {
-    pub fn new(message: &'a str) -> Self {
-        Self { message }
+    pub fn new(message: &'a str, lang: Language) -> Self {
+        Self { message, lang }
     }
 }
 
 impl Widget for ErrorWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let s = Strings::new(self.lang);
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" ⚠ ERROR ")
+            .title(format!(" ⚠ {} ", s.get("error.title")))
             .title_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
             .border_style(Style::default().fg(Color::Red));
 
@@ -72,7 +76,7 @@ impl Widget for ErrorWidget<'_> {
             Line::from(""),
             Line::from(""),
             Line::from(vec![
-                Span::styled("  Message: ", dim_style),
+                Span::styled(format!("  {} ", s.get("error.message")), dim_style),
                 Span::styled(truncated_msg, highlight_style),
             ]),
             Line::from(""),
@@ -83,20 +87,15 @@ impl Widget for ErrorWidget<'_> {
             )),
             Line::from(""),
             Line::from(Span::styled(
-                "  The application encountered an error but will",
+                format!("  {}", s.get("error.occurred")),
                 dim_style,
             )),
+            Line::from(""),
+            Line::from(""),
             Line::from(Span::styled(
-                "  continue running. Your data is safe.",
-                dim_style,
+                format!("  {}", s.get("error.continue")),
+                Style::default().fg(Color::Cyan),
             )),
-            Line::from(""),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("  Press ", dim_style),
-                Span::styled("any key", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-                Span::styled(" to continue...", dim_style),
-            ]),
         ];
 
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
