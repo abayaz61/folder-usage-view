@@ -5,31 +5,30 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::ui::theme::Theme;
+use crate::util::i18n::{Language, Strings};
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const APP_NAME: &str = "Disk Usage Analyzer";
 pub const APP_AUTHOR: &str = "Codegen";
 pub const APP_EMAIL: &str = "abayaz61@gmail.com";
 
-pub struct AboutWidget;
-
-impl AboutWidget {
-    pub fn new() -> Self {
-        Self
-    }
+pub struct AboutWidget {
+    lang: Language,
 }
 
-impl Default for AboutWidget {
-    fn default() -> Self {
-        Self::new()
+impl AboutWidget {
+    pub fn new(lang: Language) -> Self {
+        Self { lang }
     }
 }
 
 impl Widget for AboutWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let s = Strings::new(self.lang);
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" About ")
+            .title(format!(" {} ", s.get("about.title")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .border_style(Style::default().fg(Theme::highlight_color()));
 
@@ -80,11 +79,7 @@ impl Widget for AboutWidget {
             Line::from(""),
             Line::from(vec![
                 Span::styled("  ", dim_style),
-                Span::styled("Ultra high-performance disk usage analyzer", dim_style),
-            ]),
-            Line::from(vec![
-                Span::styled("  ", dim_style),
-                Span::styled("with treemap visualization", dim_style),
+                Span::styled(s.get("about.description").to_string(), dim_style),
             ]),
             Line::from(""),
             Line::from(vec![
@@ -94,7 +89,7 @@ impl Widget for AboutWidget {
             Line::from(""),
             Line::from(""),
             Line::from(Span::styled(
-                "  Press any key to close",
+                format!("  {}", s.get("about.close")),
                 Style::default().fg(Color::DarkGray),
             )),
         ];

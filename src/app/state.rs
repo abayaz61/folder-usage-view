@@ -467,7 +467,7 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 5; // Number of settings options
+        const SETTINGS_COUNT: usize = 6; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -576,6 +576,11 @@ impl App {
                         }
                     }
                 }
+            }
+            5 => {
+                // Toggle language
+                self.settings.language = self.settings.language.next();
+                self.message = Some(format!("Language: {}", self.settings.language.display_name()));
             }
             _ => {}
         }

@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 use crate::app::App;
 use crate::ui::theme::Theme;
 use crate::util::format::{format_size, truncate_str};
+use crate::util::i18n::Strings;
 
 pub struct ComputerViewWidget<'a> {
     app: &'a App,
@@ -145,11 +146,13 @@ impl<'a> ComputerViewWidget<'a> {
     }
 
     fn render_total_summary(&self, area: Rect, buf: &mut Buffer) {
+        let lang = self.app.settings.language;
+        let s = Strings::new(lang);
         let (total, used, free) = self.app.get_total_disk_stats();
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" Total Disk Usage ")
+            .title(format!(" {} ", s.get("computer.total_usage")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .border_style(Style::default().fg(Theme::border_color()));
 
@@ -183,11 +186,11 @@ impl<'a> ComputerViewWidget<'a> {
 
         // Summary stats
         lines.push(Line::from(vec![
-            Span::styled("  Total: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(format!("  {} ", s.get("drive.total")), Style::default().fg(Color::DarkGray)),
             Span::styled(format_size(total), Style::default().fg(Color::White)),
-            Span::styled("    Used: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(format!("    {} ", s.get("drive.used")), Style::default().fg(Color::DarkGray)),
             Span::styled(format_size(used), Style::default().fg(bar_color)),
-            Span::styled("    Free: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(format!("    {} ", s.get("drive.free")), Style::default().fg(Color::DarkGray)),
             Span::styled(format_size(free), Style::default().fg(Color::Green)),
         ]));
 
@@ -205,7 +208,7 @@ impl<'a> ComputerViewWidget<'a> {
         // Drive count
         lines.push(Line::from(vec![
             Span::styled(
-                format!("  {} drives detected", self.app.drives.len()),
+                format!("  {} {}", self.app.drives.len(), s.get("computer.drives_detected")),
                 Style::default().fg(Color::DarkGray),
             ),
         ]));
@@ -217,6 +220,9 @@ impl<'a> ComputerViewWidget<'a> {
 
 impl Widget for ComputerViewWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let lang = self.app.settings.language;
+        let s = Strings::new(lang);
+
         // Main layout: title, drive grid, total summary
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
@@ -230,16 +236,16 @@ impl Widget for ComputerViewWidget<'_> {
         // Title
         let title_block = Block::default()
             .borders(Borders::ALL)
-            .title(" Computer ")
+            .title(format!(" {} ", s.get("computer.title")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .border_style(Style::default().fg(Theme::highlight_color()));
 
         let title_inner = title_block.inner(main_layout[0]);
         title_block.render(main_layout[0], buf);
 
-        let hint = "Select a drive | Arrows: Navigate | Enter: Open | g: Refresh";
+        let hint = s.get("computer.hint");
         let max_hint_len = title_inner.width.saturating_sub(2) as usize;
-        let truncated_hint = truncate_str(hint, max_hint_len);
+        let truncated_hint = truncate_str(&hint, max_hint_len);
         buf.set_string(
             title_inner.x + 1,
             title_inner.y,
@@ -250,11 +256,11 @@ impl Widget for ComputerViewWidget<'_> {
         // Drive grid
         let drive_count = self.app.drives.len();
         if drive_count == 0 {
-            let msg = "No drives found. Press 'g' to refresh.";
+            let msg = s.get("computer.no_drives");
             buf.set_string(
                 main_layout[1].x + (main_layout[1].width.saturating_sub(msg.len() as u16)) / 2,
                 main_layout[1].y + main_layout[1].height / 2,
-                msg,
+                &msg,
                 Style::default().fg(Color::DarkGray),
             );
         } else {

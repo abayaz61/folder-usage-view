@@ -209,8 +209,8 @@ fn render_ui(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
     // Render overlays
     match app.mode {
-        AppMode::Help => render_help_overlay(frame, area),
-        AppMode::About => render_about_overlay(frame, area),
+        AppMode::Help => render_help_overlay(frame, app, area),
+        AppMode::About => render_about_overlay(frame, app, area),
         AppMode::Settings => render_settings_overlay(frame, app, area),
         AppMode::DeleteConfirm => render_delete_confirm(frame, app, area),
         AppMode::DriveSelect => render_drive_selector(frame, app, area),
@@ -425,15 +425,15 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     frame.render_widget(footer, area);
 }
 
-fn render_help_overlay(frame: &mut ratatui::Frame, area: Rect) {
-    let help = HelpWidget::new();
+fn render_help_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let help = HelpWidget::new(app.settings.language);
     let help_area = centered_rect(60, 70, area);
     frame.render_widget(Clear, help_area);
     frame.render_widget(help, help_area);
 }
 
-fn render_about_overlay(frame: &mut ratatui::Frame, area: Rect) {
-    let about = AboutWidget::new();
+fn render_about_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let about = AboutWidget::new(app.settings.language);
     let about_area = centered_rect(50, 60, area);
     frame.render_widget(Clear, about_area);
     frame.render_widget(about, about_area);

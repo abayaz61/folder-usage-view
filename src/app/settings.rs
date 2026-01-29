@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::util::i18n::Language;
+
 const APP_NAME: &str = "folder-usage-view";
 const SETTINGS_FILE: &str = "settings.json";
 
@@ -22,6 +24,8 @@ pub struct Settings {
     pub startup_location: StartupLocation,
     pub context_menu_enabled: bool,
     pub path_registered: bool,
+    #[serde(default)]
+    pub language: Language,
 }
 
 impl Default for Settings {
@@ -30,6 +34,7 @@ impl Default for Settings {
             startup_location: StartupLocation::LastLocation,
             context_menu_enabled: false,
             path_registered: false,
+            language: Language::default(),
         }
     }
 }

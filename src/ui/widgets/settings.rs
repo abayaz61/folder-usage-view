@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 use crate::app::{App, StartupLocation};
 use crate::app::settings::windows;
 use crate::ui::theme::Theme;
+use crate::util::i18n::Strings;
 
 pub struct SettingsWidget<'a> {
     app: &'a App,
@@ -68,9 +69,12 @@ impl<'a> SettingsWidget<'a> {
 
 impl Widget for SettingsWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let lang = self.app.settings.language;
+        let s = Strings::new(lang);
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" Settings ")
+            .title(format!(" {} ", s.get("settings.title")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .border_style(Style::default().fg(Theme::highlight_color()));
 
@@ -82,7 +86,7 @@ impl Widget for SettingsWidget<'_> {
 
         let mut lines = vec![
             Line::from(""),
-            Line::from(Span::styled("  ⚙ Application Settings", header_style)),
+            Line::from(Span::styled(format!("  ⚙ {}", s.get("settings.header")), header_style)),
             Line::from(""),
             Line::from(Span::styled(
                 "  ─────────────────────────────────────────────",
@@ -93,60 +97,86 @@ impl Widget for SettingsWidget<'_> {
 
         // Context Menu option
         let context_enabled = windows::is_context_menu_registered();
-        let context_value = if context_enabled { "Enabled" } else { "Disabled" };
+        let context_value = if context_enabled {
+            s.get("settings.enabled")
+        } else {
+            s.get("settings.disabled")
+        };
         lines.extend(self.render_option(
             0,
-            "Context Menu Integration",
+            s.get("settings.context_menu"),
             context_value,
-            "Add 'Usage Analytics' to right-click menu",
+            s.get("settings.context_menu_desc"),
             context_enabled,
         ));
 
         // Startup Location option
         let startup_value = match self.app.settings.startup_location {
-            StartupLocation::LastLocation => "Last Location",
-            StartupLocation::CurrentFolder => "Current Folder",
-            StartupLocation::ComputerView => "Computer View",
+            StartupLocation::LastLocation => s.get("startup.last_location"),
+            StartupLocation::CurrentFolder => s.get("startup.current_folder"),
+            StartupLocation::ComputerView => s.get("startup.computer_view"),
         };
         lines.extend(self.render_option(
             1,
-            "Startup Location",
+            s.get("settings.startup"),
             startup_value,
-            "Where to start when launching the app",
+            s.get("settings.startup_desc"),
             true,
         ));
 
         // PATH Registration option
         let path_enabled = windows::is_path_registered();
-        let path_value = if path_enabled { "Registered" } else { "Not Registered" };
+        let path_value = if path_enabled {
+            s.get("settings.registered")
+        } else {
+            s.get("settings.not_registered")
+        };
         lines.extend(self.render_option(
             2,
-            "System PATH Registration",
+            s.get("settings.path_reg"),
             path_value,
-            "Install to Program Files and add to PATH",
+            s.get("settings.path_reg_desc"),
             path_enabled,
         ));
 
         // Start Menu shortcut option
         let start_menu_enabled = windows::is_start_menu_shortcut_exists();
-        let start_menu_value = if start_menu_enabled { "Created" } else { "Not Created" };
+        let start_menu_value = if start_menu_enabled {
+            s.get("settings.created")
+        } else {
+            s.get("settings.not_created")
+        };
         lines.extend(self.render_option(
             3,
-            "Start Menu Shortcut",
+            s.get("settings.start_menu"),
             start_menu_value,
-            "Create shortcut in Windows Start Menu",
+            s.get("settings.start_menu_desc"),
             start_menu_enabled,
         ));
 
         // Desktop shortcut option
         let desktop_enabled = windows::is_desktop_shortcut_exists();
-        let desktop_value = if desktop_enabled { "Created" } else { "Not Created" };
+        let desktop_value = if desktop_enabled {
+            s.get("settings.created")
+        } else {
+            s.get("settings.not_created")
+        };
         lines.extend(self.render_option(
             4,
-            "Desktop Shortcut",
+            s.get("settings.desktop"),
             desktop_value,
-            "Create shortcut on Desktop",
+            s.get("settings.desktop_desc"),
             desktop_enabled,
+        ));
+
+        // Language option
+        let lang_value = self.app.settings.language.display_name();
+        lines.extend(self.render_option(
+            5,
+            s.get("settings.language"),
+            lang_value,
+            s.get("settings.language_desc"),
+            true,
         ));
 
         // Footer
@@ -158,15 +188,15 @@ impl Widget for SettingsWidget<'_> {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::styled("  ↑↓", Style::default().fg(Color::Yellow)),
-            Span::styled(": Navigate   ", dim_style),
+            Span::styled(format!(": {} ", s.get("settings.hint")), dim_style),
             Span::styled("Enter/Space", Style::default().fg(Color::Yellow)),
-            Span::styled(": Toggle   ", dim_style),
+            Span::styled(format!(": {} ", s.get("settings.toggle")), dim_style),
             Span::styled("Esc", Style::default().fg(Color::Yellow)),
-            Span::styled(": Close", dim_style),
+            Span::styled(format!(": {}", s.get("settings.close")), dim_style),
         ]));
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            "  Note: Some options require Administrator privileges",
+            format!("  {}", s.get("settings.admin_note")),
             Style::default().fg(Color::Red),
         )));
 
