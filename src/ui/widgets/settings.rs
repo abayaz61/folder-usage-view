@@ -127,6 +127,28 @@ impl Widget for SettingsWidget<'_> {
             path_enabled,
         ));
 
+        // Start Menu shortcut option
+        let start_menu_enabled = windows::is_start_menu_shortcut_exists();
+        let start_menu_value = if start_menu_enabled { "Created" } else { "Not Created" };
+        lines.extend(self.render_option(
+            3,
+            "Start Menu Shortcut",
+            start_menu_value,
+            "Create shortcut in Windows Start Menu",
+            start_menu_enabled,
+        ));
+
+        // Desktop shortcut option
+        let desktop_enabled = windows::is_desktop_shortcut_exists();
+        let desktop_value = if desktop_enabled { "Created" } else { "Not Created" };
+        lines.extend(self.render_option(
+            4,
+            "Desktop Shortcut",
+            desktop_value,
+            "Create shortcut on Desktop",
+            desktop_enabled,
+        ));
+
         // Footer
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(

@@ -456,7 +456,7 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 3; // Number of settings options
+        const SETTINGS_COUNT: usize = 5; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -515,6 +515,50 @@ impl App {
                         Ok(()) => {
                             self.settings.path_registered = true;
                             self.message = Some("Registered to PATH".to_string());
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                }
+            }
+            3 => {
+                // Toggle Start Menu shortcut
+                if windows::is_start_menu_shortcut_exists() {
+                    match windows::remove_start_menu_shortcut() {
+                        Ok(()) => {
+                            self.message = Some("Start Menu shortcut removed".to_string());
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                } else {
+                    match windows::create_start_menu_shortcut() {
+                        Ok(()) => {
+                            self.message = Some("Start Menu shortcut created".to_string());
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                }
+            }
+            4 => {
+                // Toggle Desktop shortcut
+                if windows::is_desktop_shortcut_exists() {
+                    match windows::remove_desktop_shortcut() {
+                        Ok(()) => {
+                            self.message = Some("Desktop shortcut removed".to_string());
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                } else {
+                    match windows::create_desktop_shortcut() {
+                        Ok(()) => {
+                            self.message = Some("Desktop shortcut created".to_string());
                         }
                         Err(e) => {
                             self.message = Some(format!("Error: {}", e));

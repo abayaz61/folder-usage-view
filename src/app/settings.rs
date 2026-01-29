@@ -284,6 +284,102 @@ pub mod windows {
 
         Ok(())
     }
+
+    pub fn get_start_menu_path() -> PathBuf {
+        let appdata = std::env::var("APPDATA")
+            .unwrap_or_else(|_| "C:\\Users\\Default\\AppData\\Roaming".to_string());
+        PathBuf::from(appdata)
+            .join("Microsoft")
+            .join("Windows")
+            .join("Start Menu")
+            .join("Programs")
+    }
+
+    pub fn get_desktop_path() -> PathBuf {
+        let userprofile = std::env::var("USERPROFILE")
+            .unwrap_or_else(|_| "C:\\Users\\Default".to_string());
+        PathBuf::from(userprofile).join("Desktop")
+    }
+
+    pub fn is_start_menu_shortcut_exists() -> bool {
+        let shortcut_path = get_start_menu_path().join("Disk Usage Analyzer.lnk");
+        shortcut_path.exists()
+    }
+
+    pub fn is_desktop_shortcut_exists() -> bool {
+        let shortcut_path = get_desktop_path().join("Disk Usage Analyzer.lnk");
+        shortcut_path.exists()
+    }
+
+    pub fn create_shortcut(target_path: &str, shortcut_path: &str, description: &str) -> Result<(), String> {
+        let ps_script = format!(
+            r#"$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{}'); $Shortcut.TargetPath = '{}'; $Shortcut.Description = '{}'; $Shortcut.WorkingDirectory = '%USERPROFILE%'; $Shortcut.Save()"#,
+            shortcut_path.replace("'", "''"),
+            target_path.replace("'", "''"),
+            description.replace("'", "''")
+        );
+
+        let result = Command::new("powershell")
+            .args(["-Command", &ps_script])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if !result.status.success() {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            return Err(format!("Failed to create shortcut: {}", stderr));
+        }
+
+        Ok(())
+    }
+
+    pub fn create_start_menu_shortcut() -> Result<(), String> {
+        let exe_path = get_exe_path()
+            .ok_or("Could not get executable path")?;
+
+        let start_menu = get_start_menu_path();
+        fs::create_dir_all(&start_menu)
+            .map_err(|e| format!("Failed to create Start Menu directory: {}", e))?;
+
+        let shortcut_path = start_menu.join("Disk Usage Analyzer.lnk");
+
+        create_shortcut(
+            &exe_path.to_string_lossy(),
+            &shortcut_path.to_string_lossy(),
+            "Disk Usage Analyzer - Ultra high-performance disk usage analyzer"
+        )
+    }
+
+    pub fn remove_start_menu_shortcut() -> Result<(), String> {
+        let shortcut_path = get_start_menu_path().join("Disk Usage Analyzer.lnk");
+        if shortcut_path.exists() {
+            fs::remove_file(&shortcut_path)
+                .map_err(|e| format!("Failed to remove shortcut: {}", e))?;
+        }
+        Ok(())
+    }
+
+    pub fn create_desktop_shortcut() -> Result<(), String> {
+        let exe_path = get_exe_path()
+            .ok_or("Could not get executable path")?;
+
+        let desktop = get_desktop_path();
+        let shortcut_path = desktop.join("Disk Usage Analyzer.lnk");
+
+        create_shortcut(
+            &exe_path.to_string_lossy(),
+            &shortcut_path.to_string_lossy(),
+            "Disk Usage Analyzer - Ultra high-performance disk usage analyzer"
+        )
+    }
+
+    pub fn remove_desktop_shortcut() -> Result<(), String> {
+        let shortcut_path = get_desktop_path().join("Disk Usage Analyzer.lnk");
+        if shortcut_path.exists() {
+            fs::remove_file(&shortcut_path)
+                .map_err(|e| format!("Failed to remove shortcut: {}", e))?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(not(windows))]
@@ -301,5 +397,19 @@ pub mod windows {
     }
     pub fn unregister_from_path() -> Result<(), String> {
         Err("PATH registration is only supported on Windows".to_string())
+    }
+    pub fn is_start_menu_shortcut_exists() -> bool { false }
+    pub fn is_desktop_shortcut_exists() -> bool { false }
+    pub fn create_start_menu_shortcut() -> Result<(), String> {
+        Err("Start menu shortcuts are only supported on Windows".to_string())
+    }
+    pub fn remove_start_menu_shortcut() -> Result<(), String> {
+        Err("Start menu shortcuts are only supported on Windows".to_string())
+    }
+    pub fn create_desktop_shortcut() -> Result<(), String> {
+        Err("Desktop shortcuts are only supported on Windows".to_string())
+    }
+    pub fn remove_desktop_shortcut() -> Result<(), String> {
+        Err("Desktop shortcuts are only supported on Windows".to_string())
     }
 }
