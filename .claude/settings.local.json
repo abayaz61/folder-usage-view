@@ -9,7 +9,22 @@
       "WebFetch(domain:docs.rs)",
       "Bash(cargo init:*)",
       "Bash(cargo build:*)",
-      "Bash(\"E:/AI Projects/folder-usage-view/target/release/folder-usage-view.exe\" --help)"
+      "Bash(\"E:/AI Projects/folder-usage-view/target/release/folder-usage-view.exe\" --help)",
+      "Bash(.targetreleasefolder-usage-view.exe --path \"C:\"\")",
+      "Bash(.targetreleasefolder-usage-view.exe --path C:)",
+      "Bash(python create_icon.py:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: v1.0.0 - Kapsamlı özellik güncellemesi\n\nYeni Özellikler:\n- Hakkında ve Ayarlar ekranları \\(a/s tuşları\\)\n- Windows sağ-tık context menu entegrasyonu\n- System PATH kayıt özelliği\n- Son konum hatırlama ve başlangıç seçenekleri\n- Computer view \\(tüm diskleri görüntüleme\\)\n- Retro tarzı hata ekranı\n\nİyileştirmeler:\n- Unicode/encoding tam destek \\(Korece, Japonca vb.\\)\n- Tüm string işlemleri karakter bazlı\n- Klasör bulunamazsa üst klasöre otomatik geçiş\n- Tarama sırasında gezinme desteği\n- Büyük/küçük harf duyarsız klavye kısayolları\n\nTeknik:\n- Uygulama adı: Disk Usage Analyzer \\(dua.exe\\)\n- Windows ikonu eklendi\n- Panic hook ile terminal kurtarma\n- Versiyon 1.0.0\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(dir:*)",
+      "Bash(powershell -Command \"Get-ChildItem | Select-Object Name, Length\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Add shortcut creation and high-resolution icon\n\n- Add Start Menu shortcut creation option in Settings\n- Add Desktop shortcut creation option in Settings\n- Update icon to high-resolution multi-size ICO \\(16-256px\\)\n- Custom ICO writer for proper multi-resolution embedding\n- Generate 512px PNG for other uses\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(del \"\\\\?\\\\e:\\\\AI Projects\\\\folder-usage-view\\\\nul\")",
+      "Bash(cmd.exe /c \"del \\\\?\\\\e:\\\\AI Projects\\\\folder-usage-view\\\\nul\")",
+      "Bash(powershell:*)",
+      "Bash(cmd.exe /c \"cd /d \"\"e:\\\\AI Projects\\\\folder-usage-view\"\" && del /f nul\")",
+      "Bash(cmd.exe /c 'del \"\"\\\\\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\"\"')"
     ]
   }
 }
