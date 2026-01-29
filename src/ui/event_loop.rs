@@ -91,7 +91,11 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
                     app.selected_index = count - 1;
                 }
             }
+            // Allow menus during scanning
             KeyCode::Char('?') | KeyCode::Char('h') | KeyCode::Char('H') => app.toggle_help(),
+            KeyCode::Char('a') | KeyCode::Char('A') => app.open_about(),
+            KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
+            KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
             KeyCode::Char('c') | KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
             _ => {}
         },
