@@ -38,6 +38,7 @@ pub struct App {
     pub tree: FileTree,
     pub current_node: Option<NodeId>,
     pub selected_index: usize,
+    pub parent_entry_selected: bool, // Whether ".." entry is selected
     pub scan_progress: Option<ScanProgress>,
     pub scan_result: Option<ScanResult>,
     pub scan_rx: Option<Receiver<ScanMessage>>,
@@ -68,6 +69,7 @@ impl App {
             tree: FileTree::new(),
             current_node: None,
             selected_index: 0,
+            parent_entry_selected: false,
             scan_progress: None,
             scan_result: None,
             scan_rx: None,
@@ -162,6 +164,12 @@ impl App {
             return;
         }
 
+        // If ".." entry is selected, navigate back
+        if self.parent_entry_selected {
+            self.navigate_back();
+            return;
+        }
+
         let children = self.get_current_children();
         if self.selected_index < children.len() {
             let (child_id, _, _, is_dir) = &children[self.selected_index];
@@ -171,6 +179,7 @@ impl App {
                 }
                 self.current_node = Some(*child_id);
                 self.selected_index = 0;
+                self.parent_entry_selected = false;
             }
         }
     }
@@ -181,6 +190,9 @@ impl App {
             self.message = Some("Already at Computer view".to_string());
             return;
         }
+
+        // Reset parent entry selection
+        self.parent_entry_selected = false;
 
         if let Some(parent_id) = self.navigation_stack.pop() {
             // Find index of current node in parent's children
@@ -266,13 +278,43 @@ impl App {
         }
 
         let children = self.get_current_children();
-        if children.is_empty() {
+        let has_parent = self.current_node != self.tree.root() && self.current_node.is_some();
+
+        if children.is_empty() && !has_parent {
             return;
         }
 
-        let len = children.len() as i32;
-        let new_index = (self.selected_index as i32 + delta).rem_euclid(len) as usize;
-        self.selected_index = new_index;
+        // Total items including ".." entry
+        let total_items = children.len() + if has_parent { 1 } else { 0 };
+        if total_items == 0 {
+            return;
+        }
+
+        // Calculate current effective position
+        let current_pos = if has_parent && self.parent_entry_selected {
+            0i32
+        } else if has_parent {
+            self.selected_index as i32 + 1
+        } else {
+            self.selected_index as i32
+        };
+
+        // Calculate new position with wrapping
+        let new_pos = (current_pos + delta).rem_euclid(total_items as i32) as usize;
+
+        // Update selection state
+        if has_parent {
+            if new_pos == 0 {
+                self.parent_entry_selected = true;
+                self.selected_index = 0;
+            } else {
+                self.parent_entry_selected = false;
+                self.selected_index = new_pos - 1;
+            }
+        } else {
+            self.parent_entry_selected = false;
+            self.selected_index = new_pos;
+        }
     }
 
     pub fn toggle_view(&mut self) {

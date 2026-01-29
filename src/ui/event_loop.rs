@@ -2,7 +2,7 @@ use std::io;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind, MouseButton};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -21,6 +21,9 @@ const TICK_RATE: Duration = Duration::from_millis(16); // ~60 FPS
 pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<Option<PathBuf>> {
     let mut last_tick = Instant::now();
     let mut terminal_width: u16 = 80;
+    let mut terminal_height: u16 = 24;
+    let mut last_click_time = Instant::now();
+    let mut last_click_pos: (u16, u16) = (0, 0);
 
     loop {
         // Process scanner messages
@@ -35,6 +38,7 @@ pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut 
         terminal.draw(|frame| {
             let area = frame.area();
             terminal_width = area.width;
+            terminal_height = area.height;
             render_ui(frame, app, area);
         })?;
 
@@ -44,10 +48,26 @@ pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut 
             .unwrap_or(Duration::ZERO);
 
         if event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    handle_key_event(app, key.code, key.modifiers, terminal_width);
+            match event::read()? {
+                Event::Key(key) => {
+                    if key.kind == KeyEventKind::Press {
+                        handle_key_event(app, key.code, key.modifiers, terminal_width);
+                    }
                 }
+                Event::Mouse(mouse) => {
+                    let is_double_click = if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+                        let now = Instant::now();
+                        let pos = (mouse.column, mouse.row);
+                        let is_double = last_click_pos == pos && now.duration_since(last_click_time).as_millis() < 400;
+                        last_click_time = now;
+                        last_click_pos = pos;
+                        is_double
+                    } else {
+                        false
+                    };
+                    handle_mouse_event(app, mouse.kind, mouse.column, mouse.row, terminal_width, terminal_height, is_double_click);
+                }
+                _ => {}
             }
         }
 
@@ -194,6 +214,206 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             app.dismiss_error();
         },
         AppMode::Quitting => {}
+    }
+}
+
+fn handle_mouse_event(
+    app: &mut App,
+    kind: MouseEventKind,
+    col: u16,
+    row: u16,
+    terminal_width: u16,
+    terminal_height: u16,
+    is_double_click: bool,
+) {
+    // Calculate layout areas (must match render_ui layout)
+    let header_height = 3u16;
+    let footer_height = 3u16;
+    let content_start = header_height;
+    let content_end = terminal_height.saturating_sub(footer_height);
+    let _content_height = content_end.saturating_sub(content_start);
+
+    match kind {
+        MouseEventKind::Down(MouseButton::Left) => {
+            // Handle overlay clicks first
+            match app.mode {
+                AppMode::Help | AppMode::About | AppMode::Error => {
+                    // Click anywhere dismisses overlay
+                    match app.mode {
+                        AppMode::Help => app.toggle_help(),
+                        AppMode::About => app.close_about(),
+                        AppMode::Error => app.dismiss_error(),
+                        _ => {}
+                    }
+                    return;
+                }
+                AppMode::Settings => {
+                    // Check if click is inside settings area
+                    let settings_width = (terminal_width * 65 / 100).min(terminal_width - 4);
+                    let settings_height = (terminal_height * 70 / 100).min(terminal_height - 4);
+                    let settings_x = (terminal_width - settings_width) / 2;
+                    let settings_y = (terminal_height - settings_height) / 2;
+
+                    if col < settings_x || col >= settings_x + settings_width ||
+                       row < settings_y || row >= settings_y + settings_height {
+                        // Click outside - close settings
+                        app.close_settings();
+                        return;
+                    }
+                    // Inside settings - check for option clicks
+                    let relative_row = row.saturating_sub(settings_y + 5); // Skip header
+                    let option_index = (relative_row / 3) as usize; // Each option takes 3 rows
+                    if option_index < 6 {
+                        app.settings_selected_index = option_index;
+                        if is_double_click {
+                            app.toggle_current_setting();
+                        }
+                    }
+                    return;
+                }
+                AppMode::DriveSelect => {
+                    // Check if click is inside drive selector
+                    let popup_width = (terminal_width * 80 / 100).min(terminal_width - 4);
+                    let popup_height = (terminal_height * 70 / 100).min(terminal_height - 4);
+                    let popup_x = (terminal_width - popup_width) / 2;
+                    let popup_y = (terminal_height - popup_height) / 2;
+
+                    if col < popup_x || col >= popup_x + popup_width ||
+                       row < popup_y || row >= popup_y + popup_height {
+                        app.close_drive_selector();
+                        return;
+                    }
+                    // Inside - select drive based on row
+                    let relative_row = row.saturating_sub(popup_y + 2);
+                    let drive_index = (relative_row / 3) as usize; // Each drive takes 3 rows
+                    if drive_index < app.drives.len() {
+                        app.drive_selected_index = drive_index;
+                        if is_double_click {
+                            app.select_drive();
+                        }
+                    }
+                    return;
+                }
+                _ => {}
+            }
+
+            // Content area clicks
+            if row >= content_start && row < content_end {
+                match app.mode {
+                    AppMode::ComputerView => {
+                        // Drive grid clicks
+                        let drive_area_start = content_start + 3; // After title
+                        let drive_area_end = content_end.saturating_sub(6); // Before summary
+
+                        if row >= drive_area_start && row < drive_area_end {
+                            let cols = get_drive_grid_cols(terminal_width);
+                            let card_height = 7u16;
+                            let card_width = terminal_width / cols as u16;
+
+                            let relative_row = row - drive_area_start;
+                            let grid_row = (relative_row / card_height) as usize;
+                            let grid_col = (col / card_width) as usize;
+
+                            let drive_index = grid_row * cols + grid_col;
+                            if drive_index < app.drives.len() {
+                                app.drive_selected_index = drive_index;
+                                if is_double_click {
+                                    app.navigate_into();
+                                }
+                            }
+                        }
+                    }
+                    AppMode::Scanning | AppMode::Browsing => {
+                        // File list clicks (in List or Split view)
+                        if app.view_mode == ViewMode::List || app.view_mode == ViewMode::Split {
+                            let list_start = if app.mode == AppMode::Scanning {
+                                content_start + 8 // After scan progress
+                            } else {
+                                content_start
+                            };
+
+                            // List takes 60% in List mode, 30% in Split mode
+                            let list_width = match app.view_mode {
+                                ViewMode::List => terminal_width * 60 / 100,
+                                ViewMode::Split => terminal_width * 30 / 100,
+                                _ => 0,
+                            };
+                            let list_x_start = match app.view_mode {
+                                ViewMode::Split => terminal_width * 40 / 100,
+                                _ => 0,
+                            };
+
+                            if col >= list_x_start && col < list_x_start + list_width &&
+                               row >= list_start + 1 && row < content_end - 1 {
+                                let relative_row = (row - list_start - 1) as usize;
+                                let children_count = app.get_current_children().len();
+                                let has_parent = app.current_node != app.tree.root();
+
+                                // Account for ".." entry at top
+                                if has_parent {
+                                    if relative_row == 0 {
+                                        // Clicked on ".."
+                                        if is_double_click {
+                                            app.navigate_back();
+                                        } else {
+                                            app.selected_index = 0;
+                                            app.parent_entry_selected = true;
+                                        }
+                                    } else {
+                                        let item_index = relative_row - 1;
+                                        if item_index < children_count {
+                                            app.selected_index = item_index;
+                                            app.parent_entry_selected = false;
+                                            if is_double_click {
+                                                app.navigate_into();
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if relative_row < children_count {
+                                        app.selected_index = relative_row;
+                                        app.parent_entry_selected = false;
+                                        if is_double_click {
+                                            app.navigate_into();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        MouseEventKind::Down(MouseButton::Right) => {
+            // Right click to toggle selection for deletion
+            if row >= content_start && row < content_end {
+                if matches!(app.mode, AppMode::Scanning | AppMode::Browsing) {
+                    if !app.config.read_only {
+                        app.toggle_selection();
+                    }
+                }
+            }
+        }
+        MouseEventKind::ScrollUp => {
+            match app.mode {
+                AppMode::Scanning | AppMode::Browsing => app.move_selection(-3),
+                AppMode::ComputerView => app.move_drive_selection(-1),
+                AppMode::DriveSelect => app.move_drive_selection(-1),
+                AppMode::Settings => app.move_settings_selection(-1),
+                _ => {}
+            }
+        }
+        MouseEventKind::ScrollDown => {
+            match app.mode {
+                AppMode::Scanning | AppMode::Browsing => app.move_selection(3),
+                AppMode::ComputerView => app.move_drive_selection(1),
+                AppMode::DriveSelect => app.move_drive_selection(1),
+                AppMode::Settings => app.move_settings_selection(1),
+                _ => {}
+            }
+        }
+        _ => {}
     }
 }
 

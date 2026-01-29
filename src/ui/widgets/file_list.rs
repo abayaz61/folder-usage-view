@@ -35,7 +35,10 @@ impl Widget for FileListWidget<'_> {
         }
 
         let children = self.app.get_current_children();
-        if children.is_empty() {
+        let has_parent = self.app.current_node != self.app.tree.root() && self.app.current_node.is_some();
+
+        // Check if empty (no children and at root)
+        if children.is_empty() && !has_parent {
             let msg = s.get("filelist.empty");
             let x = inner.x + (inner.width.saturating_sub(msg.len() as u16)) / 2;
             let y = inner.y + inner.height / 2;
@@ -43,18 +46,24 @@ impl Widget for FileListWidget<'_> {
             return;
         }
 
-        // Calculate visible range with scrolling
+        // Calculate total items including ".." entry
+        let total_items = children.len() + if has_parent { 1 } else { 0 };
         let visible_height = inner.height as usize;
-        let total_items = children.len();
-        let selected = self.app.selected_index;
 
-        let start_index = if selected >= visible_height {
-            selected - visible_height + 1
+        // Determine effective selected index (accounting for ".." entry)
+        let effective_selected = if has_parent && self.app.parent_entry_selected {
+            0
+        } else if has_parent {
+            self.app.selected_index + 1
+        } else {
+            self.app.selected_index
+        };
+
+        let start_index = if effective_selected >= visible_height {
+            effective_selected - visible_height + 1
         } else {
             0
         };
-
-        let _end_index = (start_index + visible_height).min(total_items);
 
         // Get current node's total size for percentage calculation
         let current_total = self.app.current_node
@@ -62,26 +71,65 @@ impl Widget for FileListWidget<'_> {
             .map(|n| n.size)
             .unwrap_or(1);
 
-        // Render items
+        let mut y_pos = inner.y;
+
+        // Render ".." entry if has parent
+        if has_parent && start_index == 0 {
+            let is_selected = self.app.parent_entry_selected;
+
+            let base_style = if is_selected {
+                Style::default()
+                    .bg(Theme::selected_bg())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+
+            // Clear line if selected
+            if is_selected {
+                for x in inner.x..inner.right() {
+                    if let Some(cell) = buf.cell_mut((x, y_pos)) {
+                        cell.set_style(base_style);
+                    }
+                }
+            }
+
+            let mut x = inner.x;
+            buf.set_string(x, y_pos, "  ", base_style.fg(Color::DarkGray));
+            x += 2;
+            buf.set_string(x, y_pos, "📁", base_style);
+            x += 3;
+            buf.set_string(x, y_pos, "..", base_style.fg(Color::Yellow).add_modifier(Modifier::BOLD));
+
+            y_pos += 1;
+        }
+
+        // Render file items
+        let items_start = if has_parent { 1 } else { 0 };
+        let items_to_skip = start_index.saturating_sub(items_start);
+
         for (i, (id, name, size, is_dir)) in children
             .iter()
             .enumerate()
-            .skip(start_index)
-            .take(visible_height)
+            .skip(items_to_skip)
         {
-            let y = inner.y + (i - start_index) as u16;
-            if y >= inner.bottom() {
+            if y_pos >= inner.bottom() {
                 break;
             }
 
-            let is_selected = i == selected;
+            let item_display_index = i + items_start;
+            if item_display_index < start_index {
+                continue;
+            }
+
+            let is_selected = !self.app.parent_entry_selected && i == self.app.selected_index;
             let node = self.app.tree.get(*id);
             let is_marked = node.map(|n| n.selected).unwrap_or(false);
             let entry_type = node.map(|n| &n.entry_type);
 
             // Build the line
-            let icon = if *is_dir { "" } else { "" };
-            let mark = if is_marked { "" } else { " " };
+            let icon = if *is_dir { "📁" } else { "📄" };
+            let mark = if is_marked { "●" } else { " " };
 
             let percentage = if current_total > 0 {
                 *size as f64 / current_total as f64 * 100.0
@@ -93,7 +141,7 @@ impl Widget for FileListWidget<'_> {
             let pct_str = format!("{:5.1}%", percentage);
 
             // Calculate available width for name
-            let fixed_width = 3 + 1 + 10 + 1 + 7; // mark + icon + size + space + percentage
+            let fixed_width = 3 + 3 + 10 + 1 + 7; // mark + icon + size + space + percentage
             let name_width = inner.width.saturating_sub(fixed_width as u16) as usize;
             let display_name = truncate_name(name, name_width);
 
@@ -129,7 +177,7 @@ impl Widget for FileListWidget<'_> {
             // Clear line if selected
             if is_selected {
                 for x in inner.x..inner.right() {
-                    if let Some(cell) = buf.cell_mut((x, y)) {
+                    if let Some(cell) = buf.cell_mut((x, y_pos)) {
                         cell.set_style(base_style);
                     }
                 }
@@ -139,28 +187,31 @@ impl Widget for FileListWidget<'_> {
             let mut x = inner.x;
 
             // Mark
-            buf.set_string(x, y, mark, mark_style);
+            buf.set_string(x, y_pos, mark, mark_style);
             x += 2;
 
             // Icon
-            buf.set_string(x, y, icon, icon_style);
-            x += 2;
+            buf.set_string(x, y_pos, icon, icon_style);
+            x += 3;
 
             // Name
-            buf.set_string(x, y, &display_name, name_style);
+            buf.set_string(x, y_pos, &display_name, name_style);
 
             // Size (right-aligned)
             let size_x = inner.right().saturating_sub(18);
-            buf.set_string(size_x, y, &format!("{:>10}", size_str), size_style);
+            buf.set_string(size_x, y_pos, &format!("{:>10}", size_str), size_style);
 
             // Percentage
             let pct_x = inner.right().saturating_sub(7);
-            buf.set_string(pct_x, y, &pct_str, pct_style);
+            buf.set_string(pct_x, y_pos, &pct_str, pct_style);
+
+            y_pos += 1;
         }
 
         // Render scroll indicator if needed
         if total_items > visible_height {
-            let scroll_info = format!(" {}/{} ", selected + 1, total_items);
+            let current_pos = effective_selected + 1;
+            let scroll_info = format!(" {}/{} ", current_pos, total_items);
             let info_x = inner.right().saturating_sub(scroll_info.len() as u16 + 1);
             buf.set_string(
                 info_x,
