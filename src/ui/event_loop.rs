@@ -380,7 +380,7 @@ fn handle_mouse_event(
                                row >= list_start + 1 && row < content_end - 1 {
                                 let relative_row = (row - list_start - 1) as usize;
                                 let children_count = app.get_current_children().len();
-                                let has_parent = app.current_node != app.tree.root();
+                                let has_parent = app.current_node.is_some() && !app.in_computer_view;
 
                                 // Account for ".." entry at top
                                 if has_parent {

@@ -278,7 +278,8 @@ impl App {
         }
 
         let children = self.get_current_children();
-        let has_parent = self.current_node != self.tree.root() && self.current_node.is_some();
+        // Always show ".." when browsing - either to go to parent folder or to ComputerView
+        let has_parent = self.current_node.is_some() && !self.in_computer_view;
 
         if children.is_empty() && !has_parent {
             return;

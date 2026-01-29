@@ -35,7 +35,8 @@ impl Widget for FileListWidget<'_> {
         }
 
         let children = self.app.get_current_children();
-        let has_parent = self.app.current_node != self.app.tree.root() && self.app.current_node.is_some();
+        // Always show ".." when browsing/scanning - either to go to parent folder or to ComputerView
+        let has_parent = self.app.current_node.is_some() && !self.app.in_computer_view;
 
         // Check if empty (no children and at root)
         if children.is_empty() && !has_parent {
