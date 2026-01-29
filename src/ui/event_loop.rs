@@ -757,9 +757,15 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
 /// Calculate menu item positions for click detection
 /// Returns a list of (start_x, end_x, action) tuples
+/// Calculate display width of a string (character count, not byte count)
+/// This is important for proper click detection with non-ASCII characters
+fn display_width(s: &str) -> u16 {
+    s.chars().count() as u16
+}
+
 fn get_menu_positions(app: &App) -> Vec<(u16, u16, &'static str)> {
     let s = Strings::new(app.settings.language);
-    let mode_len = match app.view_mode {
+    let mode_len: u16 = match app.view_mode {
         ViewMode::Treemap => 10, // " [TREEMAP] "
         ViewMode::List => 8,    // " [LIST] "
         ViewMode::Split => 9,   // " [SPLIT] "
@@ -768,44 +774,44 @@ fn get_menu_positions(app: &App) -> Vec<(u16, u16, &'static str)> {
     let mut positions = Vec::new();
     let mut x = mode_len + 2; // After mode indicator and space
 
-    // ?Help
-    let help_len = 2 + s.get("footer.help").len() as u16 + 1;
+    // ?Help: " " + "?" + "text "
+    let help_len = 2 + display_width(s.get("footer.help")) + 1;
     positions.push((x, x + help_len, "help"));
     x += help_len + 1;
 
     // aAbout
-    let about_len = 2 + s.get("footer.about").len() as u16 + 1;
+    let about_len = 2 + display_width(s.get("footer.about")) + 1;
     positions.push((x, x + about_len, "about"));
     x += about_len + 1;
 
     // sSettings
-    let settings_len = 2 + s.get("footer.settings").len() as u16 + 1;
+    let settings_len = 2 + display_width(s.get("footer.settings")) + 1;
     positions.push((x, x + settings_len, "settings"));
     x += settings_len + 1;
 
     // gDrives
-    let drives_len = 2 + s.get("footer.drives").len() as u16 + 1;
+    let drives_len = 2 + display_width(s.get("footer.drives")) + 1;
     positions.push((x, x + drives_len, "drives"));
     x += drives_len + 1;
 
-    // TabView
-    let view_len = 4 + s.get("footer.view").len() as u16 + 1;
+    // TabView: " " + "Tab" + "text "
+    let view_len = 4 + display_width(s.get("footer.view")) + 1;
     positions.push((x, x + view_len, "view"));
     x += view_len + 1;
 
-    // oSort (including [MODE] indicator)
-    let sort_len = 2 + s.get("footer.sort").len() as u16 + 1 + app.sort_mode.label().len() as u16 + 2;
+    // oSort: " " + "o" + "text " + "[MODE]"
+    let sort_len = 2 + display_width(s.get("footer.sort")) + 1 + display_width(app.sort_mode.label()) + 2;
     positions.push((x, x + sort_len, "sort"));
     x += sort_len + 1;
 
     if !app.config.read_only {
-        // SpSelect
-        let select_len = 3 + s.get("footer.select").len() as u16 + 1;
+        // SpSelect: " " + "Sp" + "text "
+        let select_len = 3 + display_width(s.get("footer.select")) + 1;
         positions.push((x, x + select_len, "select"));
         x += select_len + 1;
 
         // dDelete
-        let delete_len = 2 + s.get("footer.delete").len() as u16 + 1;
+        let delete_len = 2 + display_width(s.get("footer.delete")) + 1;
         positions.push((x, x + delete_len, "delete"));
     }
 
