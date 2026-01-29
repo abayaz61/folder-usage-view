@@ -297,6 +297,39 @@ fn handle_mouse_event(
                 _ => {}
             }
 
+            // Footer menu clicks
+            let footer_row = terminal_height.saturating_sub(2); // Middle row of footer (border is at -3 and -1)
+            if row == footer_row {
+                let menu_positions = get_menu_positions(app);
+                for (start_x, end_x, action) in menu_positions {
+                    if col >= start_x && col < end_x {
+                        match action {
+                            "help" => app.toggle_help(),
+                            "about" => app.open_about(),
+                            "settings" => app.open_settings(),
+                            "drives" => {
+                                if matches!(app.mode, AppMode::Browsing | AppMode::Scanning | AppMode::ComputerView) {
+                                    app.open_drive_selector();
+                                }
+                            }
+                            "view" => app.toggle_view(),
+                            "select" => {
+                                if !app.config.read_only {
+                                    app.toggle_selection();
+                                }
+                            }
+                            "delete" => {
+                                if !app.config.read_only && !app.tree.get_selected().is_empty() {
+                                    app.confirm_delete();
+                                }
+                            }
+                            _ => {}
+                        }
+                        return;
+                    }
+                }
+            }
+
             // Content area clicks
             if row >= content_start && row < content_end {
                 match app.mode {
@@ -618,46 +651,140 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
     let selected_count = app.tree.get_selected().len();
     let selected_str = if selected_count > 0 {
-        format!(" | {} {}", selected_count, s.get("footer.selected"))
+        format!(" {} {}", selected_count, s.get("footer.selected"))
     } else {
         String::new()
     };
 
     let message = app.message.clone().unwrap_or_default();
 
-    let help_text = if app.config.read_only {
-        format!("q:{} ?:{} a:{} s:{} g:{} Tab:{} [{}]",
-            s.get("footer.quit"), s.get("footer.help"), s.get("footer.about"),
-            s.get("footer.settings"), s.get("footer.drives"), s.get("footer.view"),
-            s.get("footer.read_only"))
-    } else {
-        format!("q:{} ?:{} a:{} s:{} g:{} Tab:{} Space:{} d:{}",
-            s.get("footer.quit"), s.get("footer.help"), s.get("footer.about"),
-            s.get("footer.settings"), s.get("footer.drives"), s.get("footer.view"),
-            s.get("footer.select"), s.get("footer.delete"))
-    };
+    // Build clickable menu items
+    let menu_style = Style::default().fg(Color::Black).bg(Color::DarkGray);
+    let key_style = Style::default().fg(Color::Yellow).bg(Color::DarkGray).add_modifier(Modifier::BOLD);
 
-    let footer = Paragraph::new(Line::from(vec![
+    let mut spans = vec![
         Span::styled(
             format!(" [{}] ", mode_str),
             Style::default().fg(Color::Black).bg(Color::Cyan),
         ),
         Span::raw(" "),
-        Span::styled(help_text, Style::default().fg(Color::DarkGray)),
-        Span::styled(selected_str, Style::default().fg(Color::Yellow)),
-        if !message.is_empty() {
-            Span::styled(format!(" | {} ", message), Style::default().fg(Color::Green))
-        } else {
-            Span::raw("")
-        },
-    ]))
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(super::theme::Theme::border_color())),
-    );
+    ];
+
+    // Menu items: [?Help] [aAbout] [sSettings] [gDrives] [TabView]
+    spans.push(Span::styled(" ", menu_style));
+    spans.push(Span::styled("?", key_style));
+    spans.push(Span::styled(format!("{} ", s.get("footer.help")), menu_style));
+
+    spans.push(Span::raw(" "));
+
+    spans.push(Span::styled(" ", menu_style));
+    spans.push(Span::styled("a", key_style));
+    spans.push(Span::styled(format!("{} ", s.get("footer.about")), menu_style));
+
+    spans.push(Span::raw(" "));
+
+    spans.push(Span::styled(" ", menu_style));
+    spans.push(Span::styled("s", key_style));
+    spans.push(Span::styled(format!("{} ", s.get("footer.settings")), menu_style));
+
+    spans.push(Span::raw(" "));
+
+    spans.push(Span::styled(" ", menu_style));
+    spans.push(Span::styled("g", key_style));
+    spans.push(Span::styled(format!("{} ", s.get("footer.drives")), menu_style));
+
+    spans.push(Span::raw(" "));
+
+    spans.push(Span::styled(" ", menu_style));
+    spans.push(Span::styled("Tab", key_style));
+    spans.push(Span::styled(format!("{} ", s.get("footer.view")), menu_style));
+
+    if !app.config.read_only {
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(" ", menu_style));
+        spans.push(Span::styled("Sp", key_style));
+        spans.push(Span::styled(format!("{} ", s.get("footer.select")), menu_style));
+
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(" ", menu_style));
+        spans.push(Span::styled("d", key_style));
+        spans.push(Span::styled(format!("{} ", s.get("footer.delete")), menu_style));
+    } else {
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(
+            format!(" [{}] ", s.get("footer.read_only")),
+            Style::default().fg(Color::Red),
+        ));
+    }
+
+    if !selected_str.is_empty() {
+        spans.push(Span::styled(selected_str, Style::default().fg(Color::Yellow)));
+    }
+
+    if !message.is_empty() {
+        spans.push(Span::styled(format!(" | {} ", message), Style::default().fg(Color::Green)));
+    }
+
+    let footer = Paragraph::new(Line::from(spans))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(super::theme::Theme::border_color())),
+        );
 
     frame.render_widget(footer, area);
+}
+
+/// Calculate menu item positions for click detection
+/// Returns a list of (start_x, end_x, action) tuples
+fn get_menu_positions(app: &App) -> Vec<(u16, u16, &'static str)> {
+    let s = Strings::new(app.settings.language);
+    let mode_len = match app.view_mode {
+        ViewMode::Treemap => 10, // " [TREEMAP] "
+        ViewMode::List => 8,    // " [LIST] "
+        ViewMode::Split => 9,   // " [SPLIT] "
+    };
+
+    let mut positions = Vec::new();
+    let mut x = mode_len + 2; // After mode indicator and space
+
+    // ?Help
+    let help_len = 2 + s.get("footer.help").len() as u16 + 1;
+    positions.push((x, x + help_len, "help"));
+    x += help_len + 1;
+
+    // aAbout
+    let about_len = 2 + s.get("footer.about").len() as u16 + 1;
+    positions.push((x, x + about_len, "about"));
+    x += about_len + 1;
+
+    // sSettings
+    let settings_len = 2 + s.get("footer.settings").len() as u16 + 1;
+    positions.push((x, x + settings_len, "settings"));
+    x += settings_len + 1;
+
+    // gDrives
+    let drives_len = 2 + s.get("footer.drives").len() as u16 + 1;
+    positions.push((x, x + drives_len, "drives"));
+    x += drives_len + 1;
+
+    // TabView
+    let view_len = 4 + s.get("footer.view").len() as u16 + 1;
+    positions.push((x, x + view_len, "view"));
+    x += view_len + 1;
+
+    if !app.config.read_only {
+        // SpSelect
+        let select_len = 3 + s.get("footer.select").len() as u16 + 1;
+        positions.push((x, x + select_len, "select"));
+        x += select_len + 1;
+
+        // dDelete
+        let delete_len = 2 + s.get("footer.delete").len() as u16 + 1;
+        positions.push((x, x + delete_len, "delete"));
+    }
+
+    positions
 }
 
 fn render_help_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
