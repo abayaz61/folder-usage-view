@@ -5,7 +5,6 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 
 use crate::app::App;
-use crate::ui::theme::Theme;
 use crate::util::format::{format_count, format_size};
 use crate::util::i18n::Strings;
 
@@ -22,11 +21,12 @@ impl<'a> StatsWidget<'a> {
 impl Widget for StatsWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let s = Strings::new(self.app.settings.language);
+        let theme = self.app.theme();
 
         let block = Block::default()
             .borders(Borders::ALL)
             .title(format!(" {} ", s.get("stats.title")))
-            .border_style(Style::default().fg(Theme::border_color()));
+            .border_style(Style::default().fg(theme.border_color()));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -121,6 +121,7 @@ fn render_separator(buf: &mut Buffer, area: Rect, title: &str) {
 
 fn render_categories(app: &App, buf: &mut Buffer, area: Rect) {
     let categories = app.tree.statistics.get_category_percentages();
+    let theme = app.theme();
 
     if categories.is_empty() {
         buf.set_string(
@@ -140,7 +141,7 @@ fn render_categories(app: &App, buf: &mut Buffer, area: Rect) {
             break;
         }
 
-        let color = Theme::color_for_category(category);
+        let color = theme.color_for_category(category);
         let name = category.name();
 
         // Category name

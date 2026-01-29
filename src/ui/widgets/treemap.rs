@@ -6,7 +6,6 @@ use ratatui::widgets::{Block, Borders, Widget};
 use crate::app::App;
 use crate::model::NodeId;
 use crate::treemap::{LayoutRect, TreemapLayout};
-use crate::ui::theme::Theme;
 use crate::util::i18n::Strings;
 
 pub struct TreemapWidget<'a> {
@@ -22,11 +21,12 @@ impl<'a> TreemapWidget<'a> {
 impl Widget for TreemapWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let s = Strings::new(self.app.settings.language);
+        let theme = self.app.theme();
 
         let block = Block::default()
             .borders(Borders::ALL)
             .title(format!(" {} ", s.get("treemap.title")))
-            .border_style(Style::default().fg(Theme::border_color()));
+            .border_style(Style::default().fg(theme.border_color()));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -89,12 +89,12 @@ impl Widget for TreemapWidget<'_> {
             let is_marked = node.selected;
 
             // Get color based on entry type
-            let base_color = Theme::color_for_entry(&node.entry_type);
+            let base_color = theme.color_for_entry(&node.entry_type);
 
             // Determine style
             let style = if is_selected {
                 Style::default()
-                    .bg(Theme::highlight_color())
+                    .bg(theme.highlight_color())
                     .fg(Color::Black)
                     .add_modifier(Modifier::BOLD)
             } else if is_marked {

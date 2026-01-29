@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ColorPalette, Theme};
 use crate::util::i18n::{Language, Strings};
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -14,23 +14,25 @@ pub const APP_EMAIL: &str = "abayaz61@gmail.com";
 
 pub struct AboutWidget {
     lang: Language,
+    palette: ColorPalette,
 }
 
 impl AboutWidget {
-    pub fn new(lang: Language) -> Self {
-        Self { lang }
+    pub fn new(lang: Language, palette: ColorPalette) -> Self {
+        Self { lang, palette }
     }
 }
 
 impl Widget for AboutWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let s = Strings::new(self.lang);
+        let theme = Theme::new(self.palette);
 
         let block = Block::default()
             .borders(Borders::ALL)
             .title(format!(" {} ", s.get("about.title")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-            .border_style(Style::default().fg(Theme::highlight_color()));
+            .border_style(Style::default().fg(theme.highlight_color()));
 
         let inner = block.inner(area);
         block.render(area, buf);

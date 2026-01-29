@@ -509,6 +509,7 @@ fn render_header(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         .map(|n| crate::util::format::format_size(n.size))
         .unwrap_or_default();
 
+    let theme = app.theme();
     let header = Paragraph::new(Line::from(vec![
         Span::styled(title, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
         Span::raw(" "),
@@ -517,7 +518,7 @@ fn render_header(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     .block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(super::theme::Theme::border_color())),
+            .border_style(Style::default().fg(theme.border_color())),
     );
 
     frame.render_widget(header, area);
@@ -756,11 +757,12 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         spans.push(Span::styled(format!(" | {} ", message), Style::default().fg(Color::Green)));
     }
 
+    let theme = app.theme();
     let footer = Paragraph::new(Line::from(spans))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(super::theme::Theme::border_color())),
+                .border_style(Style::default().fg(theme.border_color())),
         );
 
     frame.render_widget(footer, area);
@@ -835,14 +837,14 @@ fn get_menu_positions(app: &App) -> Vec<(u16, u16, &'static str)> {
 }
 
 fn render_help_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
-    let help = HelpWidget::new(app.settings.language);
+    let help = HelpWidget::new(app.settings.language, app.settings.color_palette);
     let help_area = centered_rect(60, 70, area);
     frame.render_widget(Clear, help_area);
     frame.render_widget(help, help_area);
 }
 
 fn render_about_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
-    let about = AboutWidget::new(app.settings.language);
+    let about = AboutWidget::new(app.settings.language, app.settings.color_palette);
     let about_area = centered_rect(50, 60, area);
     frame.render_widget(Clear, about_area);
     frame.render_widget(about, about_area);

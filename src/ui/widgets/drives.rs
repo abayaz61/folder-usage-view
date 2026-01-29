@@ -5,7 +5,6 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::app::App;
-use crate::ui::theme::Theme;
 use crate::util::format::format_size;
 use crate::util::i18n::Strings;
 
@@ -22,12 +21,13 @@ impl<'a> DriveListWidget<'a> {
 impl Widget for DriveListWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let s = Strings::new(self.app.settings.language);
+        let theme = self.app.theme();
 
         let block = Block::default()
             .borders(Borders::ALL)
             .title(format!(" {} ", s.get("drive_select.title")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-            .border_style(Style::default().fg(Theme::highlight_color()));
+            .border_style(Style::default().fg(theme.highlight_color()));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -82,7 +82,7 @@ impl Widget for DriveListWidget<'_> {
 
             let style = if is_selected {
                 Style::default()
-                    .bg(Theme::selected_bg())
+                    .bg(theme.selected_bg())
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()

@@ -5,7 +5,6 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::app::App;
-use crate::ui::theme::Theme;
 use crate::util::format::{format_size, truncate_str};
 use crate::util::i18n::Strings;
 
@@ -26,21 +25,22 @@ impl<'a> ComputerViewWidget<'a> {
         let drive = &self.app.drives[drive_idx];
         let is_selected = drive_idx == self.app.drive_selected_index;
         let is_current = self.app.config.target_path.starts_with(&drive.mount_point);
+        let theme = self.app.theme();
 
         // Card border style
         let border_color = if is_selected {
-            Theme::highlight_color()
+            theme.highlight_color()
         } else if is_current {
             Color::Green
         } else {
-            Theme::border_color()
+            theme.border_color()
         };
 
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(border_color))
             .style(if is_selected {
-                Style::default().bg(Theme::selected_bg())
+                Style::default().bg(theme.selected_bg())
             } else {
                 Style::default()
             });
@@ -148,13 +148,14 @@ impl<'a> ComputerViewWidget<'a> {
     fn render_total_summary(&self, area: Rect, buf: &mut Buffer) {
         let lang = self.app.settings.language;
         let s = Strings::new(lang);
+        let theme = self.app.theme();
         let (total, used, free) = self.app.get_total_disk_stats();
 
         let block = Block::default()
             .borders(Borders::ALL)
             .title(format!(" {} ", s.get("computer.total_usage")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-            .border_style(Style::default().fg(Theme::border_color()));
+            .border_style(Style::default().fg(theme.border_color()));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -234,11 +235,12 @@ impl Widget for ComputerViewWidget<'_> {
             .split(area);
 
         // Title
+        let theme = self.app.theme();
         let title_block = Block::default()
             .borders(Borders::ALL)
             .title(format!(" {} ", s.get("computer.title")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-            .border_style(Style::default().fg(Theme::highlight_color()));
+            .border_style(Style::default().fg(theme.highlight_color()));
 
         let title_inner = title_block.inner(main_layout[0]);
         title_block.render(main_layout[0], buf);

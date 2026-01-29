@@ -143,6 +143,8 @@ impl Strings {
         m.insert("settings.desktop_desc", "Create shortcut on Desktop");
         m.insert("settings.language", "Language");
         m.insert("settings.language_desc", "Application display language");
+        m.insert("settings.palette", "Color Theme");
+        m.insert("settings.palette_desc", "Color palette for UI (High Contrast recommended for RDP)");
         m.insert("settings.enabled", "Enabled");
         m.insert("settings.disabled", "Disabled");
         m.insert("settings.registered", "Registered");
@@ -313,6 +315,8 @@ impl Strings {
         m.insert("settings.desktop_desc", "Masaüstünde kısayol oluştur");
         m.insert("settings.language", "Dil");
         m.insert("settings.language_desc", "Uygulama görüntüleme dili");
+        m.insert("settings.palette", "Renk Teması");
+        m.insert("settings.palette_desc", "Arayüz renk paleti (RDP için Yüksek Kontrast önerilir)");
         m.insert("settings.enabled", "Etkin");
         m.insert("settings.disabled", "Devre Dışı");
         m.insert("settings.registered", "Kayıtlı");

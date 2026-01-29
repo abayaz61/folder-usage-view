@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::ui::theme::ColorPalette;
 use crate::util::i18n::Language;
 
 const APP_NAME: &str = "folder-usage-view";
@@ -26,6 +27,8 @@ pub struct Settings {
     pub path_registered: bool,
     #[serde(default)]
     pub language: Language,
+    #[serde(default)]
+    pub color_palette: ColorPalette,
 }
 
 impl Default for Settings {
@@ -35,6 +38,7 @@ impl Default for Settings {
             context_menu_enabled: false,
             path_registered: false,
             language: Language::default(),
+            color_palette: ColorPalette::default(),
         }
     }
 }

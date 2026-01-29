@@ -6,7 +6,6 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::app::{App, StartupLocation};
 use crate::app::settings::windows;
-use crate::ui::theme::Theme;
 use crate::util::i18n::Strings;
 
 pub struct SettingsWidget<'a> {
@@ -47,7 +46,7 @@ impl<'a> SettingsWidget<'a> {
         let desc_style = Style::default().fg(Color::DarkGray);
 
         let bg_style = if is_selected {
-            Style::default().bg(Theme::selected_bg())
+            Style::default().bg(self.app.theme().selected_bg())
         } else {
             Style::default()
         };
@@ -71,12 +70,13 @@ impl Widget for SettingsWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let lang = self.app.settings.language;
         let s = Strings::new(lang);
+        let theme = self.app.theme();
 
         let block = Block::default()
             .borders(Borders::ALL)
             .title(format!(" {} ", s.get("settings.title")))
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-            .border_style(Style::default().fg(Theme::highlight_color()));
+            .border_style(Style::default().fg(theme.highlight_color()));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -191,6 +191,16 @@ impl Widget for SettingsWidget<'_> {
             s.get("settings.language"),
             lang_value,
             s.get("settings.language_desc"),
+            true,
+        ));
+
+        // Color palette option
+        let palette_value = self.app.settings.color_palette.name();
+        lines.extend(self.render_option(
+            6,
+            s.get("settings.palette"),
+            palette_value,
+            s.get("settings.palette_desc"),
             true,
         ));
 

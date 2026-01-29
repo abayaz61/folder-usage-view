@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::model::{DriveInfo, FileTree, NodeId, get_all_drives};
 use crate::scanner::{ScanMessage, ScanProgress, ScanResult};
+use crate::ui::theme::Theme;
 
 use super::config::Config;
 use super::settings::Settings;
@@ -127,6 +128,11 @@ impl App {
     pub fn dismiss_error(&mut self) {
         self.error_message = None;
         self.mode = self.previous_mode;
+    }
+
+    /// Get the current theme based on settings
+    pub fn theme(&self) -> Theme {
+        Theme::new(self.settings.color_palette)
     }
 
     pub fn start_scan(&mut self) -> Sender<ScanMessage> {
@@ -583,7 +589,7 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 6; // Number of settings options
+        const SETTINGS_COUNT: usize = 7; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -697,6 +703,11 @@ impl App {
                 // Toggle language
                 self.settings.language = self.settings.language.next();
                 self.message = Some(format!("Language: {}", self.settings.language.display_name()));
+            }
+            6 => {
+                // Toggle color palette
+                self.settings.color_palette = self.settings.color_palette.next();
+                self.message = Some(format!("Theme: {}", self.settings.color_palette.name()));
             }
             _ => {}
         }

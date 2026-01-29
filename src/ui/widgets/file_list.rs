@@ -4,7 +4,6 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, Widget};
 
 use crate::app::App;
-use crate::ui::theme::Theme;
 use crate::util::format::format_size;
 use crate::util::i18n::Strings;
 
@@ -25,7 +24,7 @@ impl Widget for FileListWidget<'_> {
         let block = Block::default()
             .borders(Borders::ALL)
             .title(format!(" {} ", s.get("filelist.title")))
-            .border_style(Style::default().fg(Theme::border_color()));
+            .border_style(Style::default().fg(self.app.theme().border_color()));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -80,7 +79,7 @@ impl Widget for FileListWidget<'_> {
 
             let base_style = if is_selected {
                 Style::default()
-                    .bg(Theme::selected_bg())
+                    .bg(self.app.theme().selected_bg())
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
@@ -147,14 +146,15 @@ impl Widget for FileListWidget<'_> {
             let display_name = truncate_name(name, name_width);
 
             // Color based on entry type
+            let theme = self.app.theme();
             let type_color = entry_type
-                .map(|t| Theme::color_for_entry(t))
+                .map(|t| theme.color_for_entry(t))
                 .unwrap_or(Color::White);
 
             // Style based on selection
             let base_style = if is_selected {
                 Style::default()
-                    .bg(Theme::selected_bg())
+                    .bg(self.app.theme().selected_bg())
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
