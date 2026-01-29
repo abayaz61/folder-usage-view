@@ -88,6 +88,7 @@ impl Strings {
         m.insert("footer.settings", "Settings");
         m.insert("footer.drives", "Drives");
         m.insert("footer.view", "View");
+        m.insert("footer.sort", "Sort");
         m.insert("footer.select", "Select");
         m.insert("footer.delete", "Delete");
         m.insert("footer.read_only", "READ-ONLY");
@@ -108,6 +109,7 @@ impl Strings {
         m.insert("help.action_delete", "Delete selected");
         m.insert("help.action_refresh", "Refresh / Change drive");
         m.insert("help.view_toggle", "Toggle view mode");
+        m.insert("help.sort_toggle", "Cycle sort mode");
         m.insert("help.other_help", "Toggle help");
         m.insert("help.other_about", "About");
         m.insert("help.other_settings", "Settings");
@@ -254,6 +256,7 @@ impl Strings {
         m.insert("footer.settings", "Ayarlar");
         m.insert("footer.drives", "Diskler");
         m.insert("footer.view", "Görünüm");
+        m.insert("footer.sort", "Sırala");
         m.insert("footer.select", "Seç");
         m.insert("footer.delete", "Sil");
         m.insert("footer.read_only", "SALT-OKUNUR");
@@ -274,6 +277,7 @@ impl Strings {
         m.insert("help.action_delete", "Seçilenleri sil");
         m.insert("help.action_refresh", "Yenile / Disk değiştir");
         m.insert("help.view_toggle", "Görünümü değiştir");
+        m.insert("help.sort_toggle", "Sıralama değiştir");
         m.insert("help.other_help", "Yardımı aç/kapat");
         m.insert("help.other_about", "Hakkında");
         m.insert("help.other_settings", "Ayarlar");

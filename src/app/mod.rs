@@ -6,4 +6,4 @@ pub mod state;
 pub use config::Config;
 pub use history::{load_last_location, save_last_location};
 pub use settings::{Settings, StartupLocation};
-pub use state::{App, AppMode, ViewMode};
+pub use state::{App, AppMode, SortMode, ViewMode};

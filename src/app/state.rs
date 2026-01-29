@@ -30,6 +30,35 @@ pub enum ViewMode {
     Split,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SortMode {
+    #[default]
+    Size,       // By size, largest first
+    Name,       // Alphabetical A-Z
+    Type,       // Directories first, then by extension
+    Date,       // By modified date, newest first
+}
+
+impl SortMode {
+    pub fn next(self) -> Self {
+        match self {
+            SortMode::Size => SortMode::Name,
+            SortMode::Name => SortMode::Type,
+            SortMode::Type => SortMode::Date,
+            SortMode::Date => SortMode::Size,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            SortMode::Size => "SIZE",
+            SortMode::Name => "NAME",
+            SortMode::Type => "TYPE",
+            SortMode::Date => "DATE",
+        }
+    }
+}
+
 pub struct App {
     pub config: Config,
     pub mode: AppMode,
@@ -56,6 +85,8 @@ pub struct App {
     pub settings_selected_index: usize,
     // Error handling
     pub error_message: Option<String>,
+    // Sorting
+    pub sort_mode: SortMode,
 }
 
 impl App {
@@ -83,6 +114,7 @@ impl App {
             settings,
             settings_selected_index: 0,
             error_message: None,
+            sort_mode: SortMode::default(),
         }
     }
 
@@ -142,13 +174,18 @@ impl App {
     pub fn get_current_children(&self) -> Vec<(NodeId, String, u64, bool)> {
         if let Some(current) = self.current_node {
             self.tree
-                .get_children_sorted_by_size(current)
+                .get_children_sorted(current, self.sort_mode)
                 .into_iter()
                 .map(|(id, node)| (id, node.name.clone(), node.size, node.is_dir()))
                 .collect()
         } else {
             Vec::new()
         }
+    }
+
+    pub fn cycle_sort_mode(&mut self) {
+        self.sort_mode = self.sort_mode.next();
+        self.message = Some(format!("Sort: {}", self.sort_mode.label()));
     }
 
     pub fn navigate_into(&mut self) {

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::node::{FileCategory, NodeId, TreeNode};
 use super::statistics::TreeStatistics;
+use crate::app::SortMode;
 
 pub struct FileTree {
     arena: SlotMap<NodeId, TreeNode>,
@@ -139,6 +140,53 @@ impl FileTree {
     pub fn get_children_sorted_by_size(&self, id: NodeId) -> Vec<(NodeId, &TreeNode)> {
         let mut children = self.get_children(id);
         children.sort_by(|a, b| b.1.size.cmp(&a.1.size));
+        children
+    }
+
+    pub fn get_children_sorted(&self, id: NodeId, sort_mode: SortMode) -> Vec<(NodeId, &TreeNode)> {
+        let mut children = self.get_children(id);
+        match sort_mode {
+            SortMode::Size => {
+                children.sort_by(|a, b| b.1.size.cmp(&a.1.size));
+            }
+            SortMode::Name => {
+                children.sort_by(|a, b| a.1.name.to_lowercase().cmp(&b.1.name.to_lowercase()));
+            }
+            SortMode::Type => {
+                children.sort_by(|a, b| {
+                    // Directories first
+                    let a_is_dir = a.1.is_dir();
+                    let b_is_dir = b.1.is_dir();
+                    match (a_is_dir, b_is_dir) {
+                        (true, false) => std::cmp::Ordering::Less,
+                        (false, true) => std::cmp::Ordering::Greater,
+                        _ => {
+                            // Same type - sort by extension then name
+                            let a_ext = a.1.name.rsplit('.').next().unwrap_or("").to_lowercase();
+                            let b_ext = b.1.name.rsplit('.').next().unwrap_or("").to_lowercase();
+                            match a_ext.cmp(&b_ext) {
+                                std::cmp::Ordering::Equal => {
+                                    a.1.name.to_lowercase().cmp(&b.1.name.to_lowercase())
+                                }
+                                other => other,
+                            }
+                        }
+                    }
+                });
+            }
+            SortMode::Date => {
+                children.sort_by(|a, b| {
+                    let a_time = a.1.metadata.as_ref().and_then(|m| m.modified);
+                    let b_time = b.1.metadata.as_ref().and_then(|m| m.modified);
+                    match (a_time, b_time) {
+                        (Some(a), Some(b)) => b.cmp(&a), // Newest first
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => a.1.name.to_lowercase().cmp(&b.1.name.to_lowercase()),
+                    }
+                });
+            }
+        }
         children
     }
 

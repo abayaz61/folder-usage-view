@@ -116,6 +116,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('a') | KeyCode::Char('A') => app.open_about(),
             KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
+            KeyCode::Char('o') | KeyCode::Char('O') => app.cycle_sort_mode(),
             KeyCode::Char('c') | KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
             _ => {}
         },
@@ -132,6 +133,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Tab => app.toggle_view(),
             KeyCode::Char(' ') => app.toggle_selection(),
             KeyCode::Char('d') | KeyCode::Char('D') => app.confirm_delete(),
+            KeyCode::Char('o') | KeyCode::Char('O') => app.cycle_sort_mode(),
             KeyCode::PageUp => app.move_selection(-10),
             KeyCode::PageDown => app.move_selection(10),
             KeyCode::Home => app.selected_index = 0,
@@ -313,6 +315,7 @@ fn handle_mouse_event(
                                 }
                             }
                             "view" => app.toggle_view(),
+                            "sort" => app.cycle_sort_mode(),
                             "select" => {
                                 if !app.config.read_only {
                                     app.toggle_selection();
@@ -699,6 +702,17 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     spans.push(Span::styled("Tab", key_style));
     spans.push(Span::styled(format!("{} ", s.get("footer.view")), menu_style));
 
+    spans.push(Span::raw(" "));
+
+    // Sort button with current sort mode
+    spans.push(Span::styled(" ", menu_style));
+    spans.push(Span::styled("o", key_style));
+    spans.push(Span::styled(format!("{} ", s.get("footer.sort")), menu_style));
+    spans.push(Span::styled(
+        format!("[{}]", app.sort_mode.label()),
+        Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+    ));
+
     if !app.config.read_only {
         spans.push(Span::raw(" "));
         spans.push(Span::styled(" ", menu_style));
@@ -772,6 +786,11 @@ fn get_menu_positions(app: &App) -> Vec<(u16, u16, &'static str)> {
     let view_len = 4 + s.get("footer.view").len() as u16 + 1;
     positions.push((x, x + view_len, "view"));
     x += view_len + 1;
+
+    // oSort (including [MODE] indicator)
+    let sort_len = 2 + s.get("footer.sort").len() as u16 + 1 + app.sort_mode.label().len() as u16 + 2;
+    positions.push((x, x + sort_len, "sort"));
+    x += sort_len + 1;
 
     if !app.config.read_only {
         // SpSelect
