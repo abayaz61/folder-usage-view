@@ -461,6 +461,30 @@ impl App {
         }
     }
 
+    /// Move selection while toggling selection state (for Shift+Arrow multi-select)
+    pub fn move_selection_with_select(&mut self, delta: i32) {
+        if self.in_computer_view || self.config.read_only {
+            self.move_selection(delta);
+            return;
+        }
+
+        let children = self.get_current_children();
+        let has_parent = self.current_node.is_some() && !self.in_computer_view;
+
+        if children.is_empty() && !has_parent {
+            return;
+        }
+
+        // Toggle selection on current item before moving (skip ".." entry)
+        if !self.parent_entry_selected && self.selected_index < children.len() {
+            let (child_id, _, _, _) = &children[self.selected_index];
+            self.tree.toggle_selection(*child_id);
+        }
+
+        // Move to next position
+        self.move_selection(delta);
+    }
+
     pub fn toggle_view(&mut self) {
         self.view_mode = match self.view_mode {
             ViewMode::Treemap => ViewMode::List,

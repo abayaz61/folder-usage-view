@@ -128,6 +128,9 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
             KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
+            // Shift+Up/Down for multi-select
+            KeyCode::Up if modifiers.contains(KeyModifiers::SHIFT) => app.move_selection_with_select(-1),
+            KeyCode::Down if modifiers.contains(KeyModifiers::SHIFT) => app.move_selection_with_select(1),
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_selection(-1),
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_selection(1),
             KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => app.navigate_into(),
@@ -137,6 +140,12 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('d') | KeyCode::Char('D') => app.confirm_delete(),
             KeyCode::Delete => app.delete_selected_item(),
             KeyCode::Char('o') | KeyCode::Char('O') => app.cycle_sort_mode(),
+            KeyCode::PageUp if modifiers.contains(KeyModifiers::SHIFT) => {
+                for _ in 0..10 { app.move_selection_with_select(-1); }
+            }
+            KeyCode::PageDown if modifiers.contains(KeyModifiers::SHIFT) => {
+                for _ in 0..10 { app.move_selection_with_select(1); }
+            }
             KeyCode::PageUp => app.move_selection(-10),
             KeyCode::PageDown => app.move_selection(10),
             KeyCode::Home => app.selected_index = 0,
