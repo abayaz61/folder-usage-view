@@ -31,7 +31,6 @@ pub struct ScanResult {
 #[derive(Debug)]
 pub enum ScanMessage {
     Entry(ScannedEntry),
-    Batch(Vec<ScannedEntry>),
     Progress(ScanProgress),
     Completed(ScanResult),
     Error(String),

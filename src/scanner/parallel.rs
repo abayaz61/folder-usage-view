@@ -3,15 +3,9 @@ use jwalk::WalkDir;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use super::entry::{ScanMessage, ScanProgress, ScanResult, ScannedEntry};
-
-// Batch size for sending entries - larger = less overhead, but less responsive UI
-const BATCH_SIZE: usize = 256;
-
-// Progress update interval
-const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
 pub struct ParallelScanner {
     follow_symlinks: bool,
@@ -49,32 +43,13 @@ impl ParallelScanner {
         let total_size = Arc::new(AtomicU64::new(0));
         let error_count = Arc::new(AtomicU64::new(0));
 
-        // Optimized walker configuration:
-        // 1. sort(false) - Skip sorting for faster iteration
-        // 2. RayonDefaultPool - Reuse existing thread pool (less overhead)
-        // 3. process_read_dir - Pre-fetch metadata during directory read
         let walker = WalkDir::new(&root)
             .skip_hidden(self.skip_hidden)
             .follow_links(self.follow_symlinks)
-            .sort(false)  // Optimization: Don't sort entries
-            .parallelism(jwalk::Parallelism::RayonDefaultPool {
-                busy_timeout: Duration::from_secs(5),
-            })
-            .process_read_dir(|_depth, _path, _read_dir_state, children| {
-                // Optimization: Pre-fetch metadata for all children at once
-                // This is more efficient than fetching one-by-one during iteration
-                children.iter_mut().for_each(|dir_entry_result| {
-                    if let Ok(dir_entry) = dir_entry_result {
-                        // Access metadata here to cache it
-                        // jwalk will reuse this cached metadata later
-                        let _ = dir_entry.metadata();
-                    }
-                });
-            });
+            .parallelism(jwalk::Parallelism::RayonNewPool(num_cpus::get()));
 
         let mut last_progress = Instant::now();
-        let mut batch: Vec<ScannedEntry> = Vec::with_capacity(BATCH_SIZE);
-        let mut current_path: PathBuf = root.clone();
+        let progress_interval = std::time::Duration::from_millis(100);
 
         for entry in walker {
             // Check cancellation
@@ -87,7 +62,7 @@ impl ParallelScanner {
                     let path = entry.path();
                     let is_dir = entry.file_type().is_dir();
 
-                    // Get file size - use cached metadata from process_read_dir
+                    // Get file size
                     let size = if is_dir {
                         0
                     } else {
@@ -105,28 +80,20 @@ impl ParallelScanner {
                     // Get parent path
                     let parent_path = path.parent().unwrap_or(Path::new("")).to_path_buf();
 
-                    // Add to batch instead of sending immediately
-                    batch.push(ScannedEntry {
+                    // Send entry
+                    let scanned = ScannedEntry {
                         path: path.clone(),
                         parent_path,
                         size,
                         is_dir,
-                    });
+                    };
 
-                    current_path = path;
-
-                    // Send batch when full
-                    if batch.len() >= BATCH_SIZE {
-                        if tx.send(ScanMessage::Batch(std::mem::replace(
-                            &mut batch,
-                            Vec::with_capacity(BATCH_SIZE),
-                        ))).is_err() {
-                            break;
-                        }
+                    if tx.send(ScanMessage::Entry(scanned)).is_err() {
+                        break;
                     }
 
                     // Send periodic progress
-                    if last_progress.elapsed() >= PROGRESS_INTERVAL {
+                    if last_progress.elapsed() >= progress_interval {
                         let elapsed = start.elapsed();
                         let files = files_scanned.load(Ordering::Relaxed);
                         let dirs = dirs_scanned.load(Ordering::Relaxed);
@@ -137,7 +104,7 @@ impl ParallelScanner {
                             files_scanned: files,
                             dirs_scanned: dirs,
                             total_size: total,
-                            current_path: current_path.clone(),
+                            current_path: path,
                             elapsed,
                             entries_per_second,
                         };
@@ -150,11 +117,6 @@ impl ParallelScanner {
                     error_count.fetch_add(1, Ordering::Relaxed);
                 }
             }
-        }
-
-        // Send remaining entries in batch
-        if !batch.is_empty() {
-            let _ = tx.send(ScanMessage::Batch(batch));
         }
 
         // Send completion
