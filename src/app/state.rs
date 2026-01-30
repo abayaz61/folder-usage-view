@@ -290,7 +290,8 @@ impl App {
         }
     }
 
-    pub fn navigate_into(&mut self) {
+    /// Navigate into directory. If open_files is true, also opens files with default app.
+    pub fn navigate_into_ex(&mut self, open_files: bool) {
         if self.in_computer_view {
             // In computer view, select drive
             if self.drive_selected_index < self.drives.len() {
@@ -322,11 +323,21 @@ impl App {
                 self.current_node = Some(*child_id);
                 self.selected_index = 0;
                 self.parent_entry_selected = false;
-            } else {
-                // File - open it with default application
+            } else if open_files {
+                // File - open it with default application (only if open_files is true)
                 self.open_selected_item();
             }
         }
+    }
+
+    /// Navigate into directory and open files (Enter key behavior)
+    pub fn navigate_into(&mut self) {
+        self.navigate_into_ex(true);
+    }
+
+    /// Navigate into directory only, don't open files (Arrow key behavior)
+    pub fn navigate_into_dir_only(&mut self) {
+        self.navigate_into_ex(false);
     }
 
     pub fn navigate_back(&mut self) {
