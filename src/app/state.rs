@@ -168,6 +168,17 @@ impl App {
                             entry.is_dir,
                         );
                     }
+                    ScanMessage::Batch(entries) => {
+                        // Process batch of entries at once (more efficient)
+                        for entry in entries {
+                            self.tree.insert_entry(
+                                &entry.path,
+                                &entry.parent_path,
+                                entry.size,
+                                entry.is_dir,
+                            );
+                        }
+                    }
                     ScanMessage::Progress(progress) => {
                         self.scan_progress = Some(progress);
                     }
