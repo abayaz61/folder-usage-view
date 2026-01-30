@@ -401,6 +401,9 @@ fn handle_mouse_event(
                                         // Clicked on ".."
                                         if is_double_click {
                                             app.navigate_back();
+                                        } else if app.parent_entry_selected {
+                                            // Already selected, navigate back
+                                            app.navigate_back();
                                         } else {
                                             app.selected_index = 0;
                                             app.parent_entry_selected = true;
@@ -408,19 +411,33 @@ fn handle_mouse_event(
                                     } else {
                                         let item_index = relative_row - 1;
                                         if item_index < children_count {
-                                            app.selected_index = item_index;
-                                            app.parent_entry_selected = false;
+                                            let was_selected = !app.parent_entry_selected && app.selected_index == item_index;
                                             if is_double_click {
+                                                app.selected_index = item_index;
+                                                app.parent_entry_selected = false;
                                                 app.navigate_into();
+                                            } else if was_selected {
+                                                // Click on already selected item - open it
+                                                app.open_selected_item();
+                                            } else {
+                                                app.selected_index = item_index;
+                                                app.parent_entry_selected = false;
                                             }
                                         }
                                     }
                                 } else {
                                     if relative_row < children_count {
-                                        app.selected_index = relative_row;
-                                        app.parent_entry_selected = false;
+                                        let was_selected = !app.parent_entry_selected && app.selected_index == relative_row;
                                         if is_double_click {
+                                            app.selected_index = relative_row;
+                                            app.parent_entry_selected = false;
                                             app.navigate_into();
+                                        } else if was_selected {
+                                            // Click on already selected item - open it
+                                            app.open_selected_item();
+                                        } else {
+                                            app.selected_index = relative_row;
+                                            app.parent_entry_selected = false;
                                         }
                                     }
                                 }

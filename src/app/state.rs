@@ -237,6 +237,59 @@ impl App {
         }
     }
 
+    /// Open the currently selected file/folder with the default system application
+    pub fn open_selected_item(&mut self) {
+        if self.in_computer_view {
+            // In computer view, open selected drive
+            if self.drive_selected_index < self.drives.len() {
+                let path = self.drives[self.drive_selected_index].mount_point.clone();
+                self.open_path_with_system(&path);
+            }
+            return;
+        }
+
+        // If ".." entry is selected, do nothing (it's not a real file)
+        if self.parent_entry_selected {
+            return;
+        }
+
+        let children = self.get_current_children();
+        if self.selected_index < children.len() {
+            let (child_id, _, _, _) = &children[self.selected_index];
+            if let Some(path) = self.tree.get_path(*child_id) {
+                self.open_path_with_system(&path);
+            }
+        }
+    }
+
+    /// Open a path with the default system application
+    fn open_path_with_system(&mut self, path: &PathBuf) {
+        #[cfg(target_os = "windows")]
+        {
+            use std::process::Command;
+            // Use 'start' command which opens files with their default application
+            if let Err(e) = Command::new("cmd")
+                .args(["/C", "start", "", &path.display().to_string()])
+                .spawn()
+            {
+                self.message = Some(format!("Failed to open: {}", e));
+            } else {
+                self.message = Some(format!("Opened: {}", path.display()));
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            use std::process::Command;
+            // Use xdg-open on Linux
+            if let Err(e) = Command::new("xdg-open").arg(path).spawn() {
+                self.message = Some(format!("Failed to open: {}", e));
+            } else {
+                self.message = Some(format!("Opened: {}", path.display()));
+            }
+        }
+    }
+
     pub fn navigate_into(&mut self) {
         if self.in_computer_view {
             // In computer view, select drive
@@ -260,12 +313,16 @@ impl App {
         if self.selected_index < children.len() {
             let (child_id, _, _, is_dir) = &children[self.selected_index];
             if *is_dir {
+                // Directory - navigate into it
                 if let Some(current) = self.current_node {
                     self.navigation_stack.push(current);
                 }
                 self.current_node = Some(*child_id);
                 self.selected_index = 0;
                 self.parent_entry_selected = false;
+            } else {
+                // File - open it with default application
+                self.open_selected_item();
             }
         }
     }
