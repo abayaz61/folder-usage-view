@@ -97,11 +97,21 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
         AppMode::Scanning => match key {
             KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => app.quit(),
             // Allow navigation during scanning
+            // Shift+Up/Down for multi-select
+            KeyCode::Up if modifiers.contains(KeyModifiers::SHIFT) => app.move_selection_with_select(-1),
+            KeyCode::Down if modifiers.contains(KeyModifiers::SHIFT) => app.move_selection_with_select(1),
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_selection(-1),
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_selection(1),
             KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => app.navigate_into(),
             KeyCode::Backspace | KeyCode::Left => app.navigate_back(),
             KeyCode::Tab => app.toggle_view(),
+            KeyCode::Char(' ') => app.toggle_selection(),
+            KeyCode::PageUp if modifiers.contains(KeyModifiers::SHIFT) => {
+                for _ in 0..10 { app.move_selection_with_select(-1); }
+            }
+            KeyCode::PageDown if modifiers.contains(KeyModifiers::SHIFT) => {
+                for _ in 0..10 { app.move_selection_with_select(1); }
+            }
             KeyCode::PageUp => app.move_selection(-10),
             KeyCode::PageDown => app.move_selection(10),
             KeyCode::Home => app.selected_index = 0,
