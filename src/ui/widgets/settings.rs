@@ -219,6 +219,34 @@ impl Widget for SettingsWidget<'_> {
             true,
         ));
 
+        // Delete method option
+        let delete_method_value = if self.app.settings.delete_to_trash {
+            s.get("settings.delete_to_trash")
+        } else {
+            s.get("settings.delete_permanent")
+        };
+        lines.extend(self.render_option(
+            8,
+            s.get("settings.delete_method"),
+            delete_method_value,
+            s.get("settings.delete_method_desc"),
+            true,
+        ));
+
+        // Delete confirmation option
+        let delete_confirm_value = if self.app.settings.show_delete_confirmation {
+            s.get("settings.enabled")
+        } else {
+            s.get("settings.disabled")
+        };
+        lines.extend(self.render_option(
+            9,
+            s.get("settings.delete_confirm"),
+            delete_confirm_value,
+            s.get("settings.delete_confirm_desc"),
+            self.app.settings.show_delete_confirmation,
+        ));
+
         // Footer
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(

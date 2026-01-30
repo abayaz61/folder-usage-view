@@ -149,6 +149,12 @@ impl Strings {
         m.insert("settings.icons_desc", "Use ASCII icons for better RDP compatibility");
         m.insert("settings.icons_unicode", "Unicode");
         m.insert("settings.icons_ascii", "ASCII");
+        m.insert("settings.delete_method", "Delete Method");
+        m.insert("settings.delete_method_desc", "Move to Recycle Bin or delete permanently");
+        m.insert("settings.delete_to_trash", "Recycle Bin");
+        m.insert("settings.delete_permanent", "Permanent");
+        m.insert("settings.delete_confirm", "Delete Confirmation");
+        m.insert("settings.delete_confirm_desc", "Show confirmation dialog before deleting");
         m.insert("settings.enabled", "Enabled");
         m.insert("settings.disabled", "Disabled");
         m.insert("settings.registered", "Registered");
@@ -171,10 +177,14 @@ impl Strings {
         m.insert("delete.items", "Items to delete:");
         m.insert("delete.total_size", "Total size:");
         m.insert("delete.warning", "This action cannot be undone!");
+        m.insert("delete.warning_trash", "Items will be moved to Recycle Bin");
         m.insert("delete.yes", "Confirm");
+        m.insert("delete.yes_permanent", "Delete Permanently");
         m.insert("delete.no", "Cancel");
         m.insert("delete.disabled", "Delete disabled in read-only mode");
         m.insert("delete.cannot_drives", "Cannot delete drives");
+        m.insert("delete.moved_to_trash", "Moved to Recycle Bin");
+        m.insert("delete.deleted_permanently", "Deleted permanently");
 
         // Drive selector
         m.insert("drive_select.title", "Select Drive - Press Enter to confirm, Esc to cancel");
@@ -325,6 +335,12 @@ impl Strings {
         m.insert("settings.icons_desc", "Daha iyi RDP uyumluluğu için ASCII simgeleri kullan");
         m.insert("settings.icons_unicode", "Unicode");
         m.insert("settings.icons_ascii", "ASCII");
+        m.insert("settings.delete_method", "Silme Yöntemi");
+        m.insert("settings.delete_method_desc", "Çöp kutusuna taşı veya kalıcı olarak sil");
+        m.insert("settings.delete_to_trash", "Çöp Kutusu");
+        m.insert("settings.delete_permanent", "Kalıcı");
+        m.insert("settings.delete_confirm", "Silme Onayı");
+        m.insert("settings.delete_confirm_desc", "Silmeden önce onay penceresi göster");
         m.insert("settings.enabled", "Etkin");
         m.insert("settings.disabled", "Devre Dışı");
         m.insert("settings.registered", "Kayıtlı");
@@ -347,10 +363,14 @@ impl Strings {
         m.insert("delete.items", "Silinecek öğe:");
         m.insert("delete.total_size", "Toplam boyut:");
         m.insert("delete.warning", "Bu işlem geri alınamaz!");
+        m.insert("delete.warning_trash", "Öğeler Çöp Kutusuna taşınacak");
         m.insert("delete.yes", "Onayla");
+        m.insert("delete.yes_permanent", "Kalıcı Sil");
         m.insert("delete.no", "İptal");
         m.insert("delete.disabled", "Salt-okunur modda silme devre dışı");
         m.insert("delete.cannot_drives", "Diskler silinemez");
+        m.insert("delete.moved_to_trash", "Çöp Kutusuna taşındı");
+        m.insert("delete.deleted_permanently", "Kalıcı olarak silindi");
 
         // Drive selector
         m.insert("drive_select.title", "Disk Seç - Onay: Enter, İptal: Esc");

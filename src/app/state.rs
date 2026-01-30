@@ -513,12 +513,61 @@ impl App {
         self.mode = AppMode::Browsing;
     }
 
-    pub fn execute_delete(&mut self) -> Vec<(PathBuf, Result<(), std::io::Error>)> {
+    /// Delete selected item directly (used with Delete key)
+    pub fn delete_selected_item(&mut self) {
+        if self.in_computer_view {
+            self.message = Some("Cannot delete drives".to_string());
+            return;
+        }
+
+        if self.config.read_only {
+            self.message = Some("Delete disabled in read-only mode".to_string());
+            return;
+        }
+
+        if self.parent_entry_selected {
+            return; // Can't delete ".."
+        }
+
+        let children = self.get_current_children();
+        if self.selected_index >= children.len() {
+            return;
+        }
+
+        let (child_id, name, _, _) = &children[self.selected_index];
+        let child_id = *child_id;
+        let name = name.clone();
+
+        // Mark item for deletion
+        self.tree.toggle_selection(child_id);
+
+        if self.settings.show_delete_confirmation {
+            // Show confirmation dialog
+            self.mode = AppMode::DeleteConfirm;
+        } else {
+            // Delete directly without confirmation
+            let results = self.execute_delete(self.settings.delete_to_trash);
+            let success_count = results.iter().filter(|(_, r)| r.is_ok()).count();
+            if success_count > 0 {
+                if self.settings.delete_to_trash {
+                    self.message = Some(format!("Moved to Recycle Bin: {}", name));
+                } else {
+                    self.message = Some(format!("Deleted: {}", name));
+                }
+            } else {
+                self.message = Some(format!("Failed to delete: {}", name));
+            }
+        }
+    }
+
+    pub fn execute_delete(&mut self, to_trash: bool) -> Vec<(PathBuf, Result<(), std::io::Error>)> {
         let selected = self.get_selected_for_deletion();
         let mut results = Vec::new();
 
         for (id, path, _) in selected {
-            let result = if path.is_dir() {
+            let result = if to_trash {
+                Self::move_to_trash(&path)
+            } else if path.is_dir() {
                 std::fs::remove_dir_all(&path)
             } else {
                 std::fs::remove_file(&path)
@@ -533,6 +582,43 @@ impl App {
 
         self.mode = AppMode::Browsing;
         results
+    }
+
+    /// Move a file or directory to the Recycle Bin (Windows) or Trash (other platforms)
+    #[cfg(target_os = "windows")]
+    fn move_to_trash(path: &PathBuf) -> Result<(), std::io::Error> {
+        use std::process::Command;
+
+        // Use PowerShell to move to Recycle Bin
+        let path_str = path.display().to_string();
+        let script = format!(
+            r#"Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('{}', 'OnlyErrorDialogs', 'SendToRecycleBin')"#,
+            path_str.replace("'", "''")
+        );
+
+        let output = Command::new("powershell")
+            .args(["-NoProfile", "-Command", &script])
+            .output()?;
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to move to Recycle Bin: {}", stderr),
+            ))
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn move_to_trash(path: &PathBuf) -> Result<(), std::io::Error> {
+        // On non-Windows, fall back to permanent deletion
+        if path.is_dir() {
+            std::fs::remove_dir_all(path)
+        } else {
+            std::fs::remove_file(path)
+        }
     }
 
     pub fn toggle_help(&mut self) {
@@ -656,7 +742,7 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 8; // Number of settings options
+        const SETTINGS_COUNT: usize = 10; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -781,6 +867,18 @@ impl App {
                 self.settings.use_ascii_icons = !self.settings.use_ascii_icons;
                 let mode = if self.settings.use_ascii_icons { "ASCII" } else { "Unicode" };
                 self.message = Some(format!("Icons: {}", mode));
+            }
+            8 => {
+                // Toggle delete method (trash vs permanent)
+                self.settings.delete_to_trash = !self.settings.delete_to_trash;
+                let mode = if self.settings.delete_to_trash { "Recycle Bin" } else { "Permanent" };
+                self.message = Some(format!("Delete: {}", mode));
+            }
+            9 => {
+                // Toggle delete confirmation
+                self.settings.show_delete_confirmation = !self.settings.show_delete_confirmation;
+                let mode = if self.settings.show_delete_confirmation { "Enabled" } else { "Disabled" };
+                self.message = Some(format!("Delete confirmation: {}", mode));
             }
             _ => {}
         }

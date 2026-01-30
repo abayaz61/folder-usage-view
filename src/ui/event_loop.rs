@@ -135,6 +135,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Tab => app.toggle_view(),
             KeyCode::Char(' ') => app.toggle_selection(),
             KeyCode::Char('d') | KeyCode::Char('D') => app.confirm_delete(),
+            KeyCode::Delete => app.delete_selected_item(),
             KeyCode::Char('o') | KeyCode::Char('O') => app.cycle_sort_mode(),
             KeyCode::PageUp => app.move_selection(-10),
             KeyCode::PageDown => app.move_selection(10),
@@ -166,16 +167,32 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
         },
         AppMode::DeleteConfirm => match key {
             KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
-                let results = app.execute_delete();
+                let to_trash = app.settings.delete_to_trash;
+                let results = app.execute_delete(to_trash);
+                let success_count = results.iter().filter(|(_, r)| r.is_ok()).count();
+                let fail_count = results.len() - success_count;
+                let action = if to_trash { "Moved to Recycle Bin" } else { "Deleted" };
+                if fail_count > 0 {
+                    app.message = Some(format!(
+                        "{} {} items, {} failed",
+                        action, success_count, fail_count
+                    ));
+                } else {
+                    app.message = Some(format!("{} {} items", action, success_count));
+                }
+            }
+            KeyCode::Char('p') | KeyCode::Char('P') => {
+                // Force permanent delete regardless of settings
+                let results = app.execute_delete(false);
                 let success_count = results.iter().filter(|(_, r)| r.is_ok()).count();
                 let fail_count = results.len() - success_count;
                 if fail_count > 0 {
                     app.message = Some(format!(
-                        "Deleted {} items, {} failed",
+                        "Permanently deleted {} items, {} failed",
                         success_count, fail_count
                     ));
                 } else {
-                    app.message = Some(format!("Deleted {} items", success_count));
+                    app.message = Some(format!("Permanently deleted {} items", success_count));
                 }
             }
             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => app.cancel_delete(),
@@ -886,8 +903,21 @@ fn render_delete_confirm(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     let s = Strings::new(app.settings.language);
     let selected = app.get_selected_for_deletion();
     let total_size: u64 = selected.iter().map(|(_, _, s)| s).sum();
+    let to_trash = app.settings.delete_to_trash;
 
-    let text = vec![
+    let warning_text = if to_trash {
+        s.get("delete.warning_trash")
+    } else {
+        s.get("delete.warning")
+    };
+
+    let confirm_text = if to_trash {
+        format!("{} ({})", s.get("delete.yes"), s.get("settings.delete_to_trash"))
+    } else {
+        s.get("delete.yes").to_string()
+    };
+
+    let mut text = vec![
         Line::from(""),
         Line::from(Span::styled(
             s.get("delete.confirm").to_string(),
@@ -902,17 +932,26 @@ fn render_delete_confirm(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         )),
         Line::from(""),
         Line::from(Span::styled(
-            s.get("delete.warning").to_string(),
+            warning_text.to_string(),
             Style::default().fg(Color::Yellow),
         )),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("[Y]", Style::default().fg(Color::Green)),
-            Span::raw(format!(" {}  ", s.get("delete.yes"))),
-            Span::styled("[N]", Style::default().fg(Color::Red)),
-            Span::raw(format!(" {}", s.get("delete.no"))),
-        ]),
     ];
+
+    // Add buttons
+    let mut buttons = vec![
+        Span::styled("[Y]", Style::default().fg(Color::Green)),
+        Span::raw(format!(" {}  ", confirm_text)),
+    ];
+
+    // Always show permanent delete option
+    buttons.push(Span::styled("[P]", Style::default().fg(Color::Magenta)));
+    buttons.push(Span::raw(format!(" {}  ", s.get("delete.yes_permanent"))));
+
+    buttons.push(Span::styled("[N]", Style::default().fg(Color::Red)));
+    buttons.push(Span::raw(format!(" {}", s.get("delete.no"))));
+
+    text.push(Line::from(buttons));
 
     let dialog = Paragraph::new(text)
         .block(
@@ -924,7 +963,7 @@ fn render_delete_confirm(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         .alignment(ratatui::layout::Alignment::Center)
         .wrap(Wrap { trim: true });
 
-    let dialog_area = centered_rect(50, 40, area);
+    let dialog_area = centered_rect(55, 45, area);
     frame.render_widget(Clear, dialog_area);
     frame.render_widget(dialog, dialog_area);
 }

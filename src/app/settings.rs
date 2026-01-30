@@ -34,6 +34,14 @@ pub struct Settings {
     pub use_ascii_icons: bool,
     #[serde(default)]
     pub view_mode: ViewMode,
+    #[serde(default)]
+    pub delete_to_trash: bool,
+    #[serde(default = "default_true")]
+    pub show_delete_confirmation: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Settings {
@@ -46,6 +54,8 @@ impl Default for Settings {
             color_palette: ColorPalette::default(),
             use_ascii_icons: false,
             view_mode: ViewMode::default(),
+            delete_to_trash: false,
+            show_delete_confirmation: true,
         }
     }
 }
