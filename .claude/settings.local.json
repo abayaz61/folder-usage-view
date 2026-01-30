@@ -24,7 +24,13 @@
       "Bash(cmd.exe /c \"del \\\\?\\\\e:\\\\AI Projects\\\\folder-usage-view\\\\nul\")",
       "Bash(powershell:*)",
       "Bash(cmd.exe /c \"cd /d \"\"e:\\\\AI Projects\\\\folder-usage-view\"\" && del /f nul\")",
-      "Bash(cmd.exe /c 'del \"\"\\\\\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\"\"')"
+      "Bash(cmd.exe /c 'del \"\"\\\\\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\"\"')",
+      "Bash(git reset:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(del \"\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\")",
+      "Bash(cmd /c \"del /f /q \\\\.\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\")",
+      "Bash(cmd /c \"del /f /q \"\"\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\"\"\")"
     ]
   }
 }
