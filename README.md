@@ -129,7 +129,8 @@ dua --show-hidden
 |-----|--------|
 | `↑` `k` | Move up |
 | `↓` `j` | Move down |
-| `Enter` `→` `l` | Enter directory / Open file |
+| `→` `l` | Enter directory |
+| `Enter` | Enter directory / Open file |
 | `Backspace` `←` | Go back / Parent directory |
 | `Page Up` | Move up 10 items |
 | `Page Down` | Move down 10 items |
@@ -143,13 +144,24 @@ dua --show-hidden
 | `Tab` | Cycle view mode (Treemap → List → Split) |
 | `o` | Cycle sort mode (Size → Name → Type → Date) |
 
+### Selection (Multi-Select)
+
+| Key | Action |
+|-----|--------|
+| `Space` | Toggle selection on current item |
+| `Shift` + `↑` | Move up and toggle selection |
+| `Shift` + `↓` | Move down and toggle selection |
+| `Shift` + `Page Up` | Select/deselect 10 items up |
+| `Shift` + `Page Down` | Select/deselect 10 items down |
+
+> **Note:** Multi-select works as toggle - moving over an already selected item will deselect it. Selections are cleared when navigating to a different folder.
+
 ### Actions
 
 | Key | Action |
 |-----|--------|
 | `Enter` | Open file with default application |
 | `e` | Open current folder in Explorer |
-| `Space` | Toggle selection for deletion |
 | `d` | Delete selected items (shows confirmation) |
 | `Delete` | Delete current item directly |
 | `g` | Open drive selector / Refresh drives |
