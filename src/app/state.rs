@@ -742,7 +742,7 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 10; // Number of settings options
+        const SETTINGS_COUNT: usize = 11; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -869,12 +869,20 @@ impl App {
                 self.message = Some(format!("Icons: {}", mode));
             }
             8 => {
-                // Toggle delete method (trash vs permanent)
-                self.settings.delete_to_trash = !self.settings.delete_to_trash;
-                let mode = if self.settings.delete_to_trash { "Recycle Bin" } else { "Permanent" };
+                // Toggle allow delete
+                self.settings.allow_delete = !self.settings.allow_delete;
+                // Also update config.read_only
+                self.config.read_only = !self.settings.allow_delete;
+                let mode = if self.settings.allow_delete { "Enabled" } else { "Disabled" };
                 self.message = Some(format!("Delete: {}", mode));
             }
             9 => {
+                // Toggle delete method (trash vs permanent)
+                self.settings.delete_to_trash = !self.settings.delete_to_trash;
+                let mode = if self.settings.delete_to_trash { "Recycle Bin" } else { "Permanent" };
+                self.message = Some(format!("Delete method: {}", mode));
+            }
+            10 => {
                 // Toggle delete confirmation
                 self.settings.show_delete_confirmation = !self.settings.show_delete_confirmation;
                 let mode = if self.settings.show_delete_confirmation { "Enabled" } else { "Disabled" };

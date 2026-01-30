@@ -140,9 +140,10 @@ fn main() -> anyhow::Result<()> {
 
     // Main loop - allows rescanning when navigating to parent directory
     loop {
-        // Create config
+        // Create config - allow delete if either command line arg or settings allow it
+        let allow_delete = args.allow_delete || settings.allow_delete;
         let config = Config::new(target_path.clone())
-            .with_read_only(!args.allow_delete)
+            .with_read_only(!allow_delete)
             .with_follow_symlinks(args.follow_symlinks)
             .with_show_hidden(args.show_hidden);
 

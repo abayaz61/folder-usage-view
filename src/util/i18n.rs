@@ -149,6 +149,8 @@ impl Strings {
         m.insert("settings.icons_desc", "Use ASCII icons for better RDP compatibility");
         m.insert("settings.icons_unicode", "Unicode");
         m.insert("settings.icons_ascii", "ASCII");
+        m.insert("settings.allow_delete", "Allow Delete");
+        m.insert("settings.allow_delete_desc", "Enable file and folder deletion (use with caution!)");
         m.insert("settings.delete_method", "Delete Method");
         m.insert("settings.delete_method_desc", "Move to Recycle Bin or delete permanently");
         m.insert("settings.delete_to_trash", "Recycle Bin");
@@ -335,6 +337,8 @@ impl Strings {
         m.insert("settings.icons_desc", "Daha iyi RDP uyumluluğu için ASCII simgeleri kullan");
         m.insert("settings.icons_unicode", "Unicode");
         m.insert("settings.icons_ascii", "ASCII");
+        m.insert("settings.allow_delete", "Silmeye İzin Ver");
+        m.insert("settings.allow_delete_desc", "Dosya ve klasör silmeyi etkinleştir (dikkatli kullanın!)");
         m.insert("settings.delete_method", "Silme Yöntemi");
         m.insert("settings.delete_method_desc", "Çöp kutusuna taşı veya kalıcı olarak sil");
         m.insert("settings.delete_to_trash", "Çöp Kutusu");

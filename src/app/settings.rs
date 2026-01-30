@@ -35,6 +35,8 @@ pub struct Settings {
     #[serde(default)]
     pub view_mode: ViewMode,
     #[serde(default)]
+    pub allow_delete: bool,
+    #[serde(default)]
     pub delete_to_trash: bool,
     #[serde(default = "default_true")]
     pub show_delete_confirmation: bool,
@@ -54,6 +56,7 @@ impl Default for Settings {
             color_palette: ColorPalette::default(),
             use_ascii_icons: false,
             view_mode: ViewMode::default(),
+            allow_delete: false,
             delete_to_trash: false,
             show_delete_confirmation: true,
         }

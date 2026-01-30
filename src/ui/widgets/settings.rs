@@ -219,6 +219,20 @@ impl Widget for SettingsWidget<'_> {
             true,
         ));
 
+        // Allow delete option
+        let allow_delete_value = if self.app.settings.allow_delete {
+            s.get("settings.enabled")
+        } else {
+            s.get("settings.disabled")
+        };
+        lines.extend(self.render_option(
+            8,
+            s.get("settings.allow_delete"),
+            allow_delete_value,
+            s.get("settings.allow_delete_desc"),
+            self.app.settings.allow_delete,
+        ));
+
         // Delete method option
         let delete_method_value = if self.app.settings.delete_to_trash {
             s.get("settings.delete_to_trash")
@@ -226,7 +240,7 @@ impl Widget for SettingsWidget<'_> {
             s.get("settings.delete_permanent")
         };
         lines.extend(self.render_option(
-            8,
+            9,
             s.get("settings.delete_method"),
             delete_method_value,
             s.get("settings.delete_method_desc"),
@@ -240,7 +254,7 @@ impl Widget for SettingsWidget<'_> {
             s.get("settings.disabled")
         };
         lines.extend(self.render_option(
-            9,
+            10,
             s.get("settings.delete_confirm"),
             delete_confirm_value,
             s.get("settings.delete_confirm_desc"),
