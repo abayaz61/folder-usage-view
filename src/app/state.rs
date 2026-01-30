@@ -313,6 +313,8 @@ impl App {
         if self.selected_index < children.len() {
             let (child_id, _, _, is_dir) = &children[self.selected_index];
             if *is_dir {
+                // Clear selections when navigating
+                self.tree.clear_all_selections();
                 // Directory - navigate into it
                 if let Some(current) = self.current_node {
                     self.navigation_stack.push(current);
@@ -333,6 +335,9 @@ impl App {
             self.message = Some("Already at Computer view".to_string());
             return;
         }
+
+        // Clear selections when navigating
+        self.tree.clear_all_selections();
 
         // Reset parent entry selection
         self.parent_entry_selected = false;

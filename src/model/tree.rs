@@ -204,6 +204,12 @@ impl FileTree {
             .collect()
     }
 
+    pub fn clear_all_selections(&mut self) {
+        for (_, node) in self.arena.iter_mut() {
+            node.selected = false;
+        }
+    }
+
     pub fn get_path(&self, id: NodeId) -> Option<PathBuf> {
         self.path_index
             .iter()
