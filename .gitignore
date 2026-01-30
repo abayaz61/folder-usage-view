@@ -1,1 +1,18 @@
 /target
+
+# Windows reserved names (can't be deleted normally)
+nul
+NUL
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug logs
+*.log
+firebase-debug.log
+
+# Local settings
+.claude/
