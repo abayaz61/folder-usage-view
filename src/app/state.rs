@@ -89,6 +89,8 @@ pub struct App {
     pub error_message: Option<String>,
     // Sorting
     pub sort_mode: SortMode,
+    // Admin restart flag
+    pub pending_admin_restart: bool,
 }
 
 impl App {
@@ -118,6 +120,7 @@ impl App {
             settings_selected_index: 0,
             error_message: None,
             sort_mode: SortMode::default(),
+            pending_admin_restart: false,
         }
     }
 
@@ -151,6 +154,9 @@ impl App {
         // Initialize root
         let root_id = self.tree.set_root(&self.config.target_path);
         self.current_node = Some(root_id);
+
+        // Immediately populate root's children for faster UI response
+        self.tree.populate_children_from_fs(root_id);
 
         tx
     }
@@ -314,15 +320,21 @@ impl App {
         if self.selected_index < children.len() {
             let (child_id, _, _, is_dir) = &children[self.selected_index];
             if *is_dir {
+                let child_id = *child_id;
                 // Clear selections when navigating
                 self.tree.clear_all_selections();
                 // Directory - navigate into it
                 if let Some(current) = self.current_node {
                     self.navigation_stack.push(current);
                 }
-                self.current_node = Some(*child_id);
+                self.current_node = Some(child_id);
                 self.selected_index = 0;
                 self.parent_entry_selected = false;
+
+                // Immediately populate children if not already done (for faster UI response)
+                if self.is_scanning() {
+                    self.tree.populate_children_from_fs(child_id);
+                }
             } else if open_files {
                 // File - open it with default application (only if open_files is true)
                 self.open_selected_item();
@@ -782,7 +794,7 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 11; // Number of settings options
+        const SETTINGS_COUNT: usize = 12; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -927,6 +939,19 @@ impl App {
                 self.settings.show_delete_confirmation = !self.settings.show_delete_confirmation;
                 let mode = if self.settings.show_delete_confirmation { "Enabled" } else { "Disabled" };
                 self.message = Some(format!("Delete confirmation: {}", mode));
+            }
+            11 => {
+                // Toggle run as admin
+                self.settings.run_as_admin = !self.settings.run_as_admin;
+                let mode = if self.settings.run_as_admin { "Enabled" } else { "Disabled" };
+                self.message = Some(format!("Run as Admin: {}", mode));
+
+                // If enabled and not currently admin, we need to restart
+                if self.settings.run_as_admin && !windows::is_running_as_admin() {
+                    // Save first, then the main loop will handle the restart
+                    let _ = self.settings.save();
+                    self.pending_admin_restart = true;
+                }
             }
             _ => {}
         }

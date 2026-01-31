@@ -34,6 +34,13 @@ pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut 
             return Ok(Some(new_path));
         }
 
+        // Check for pending admin restart
+        if app.pending_admin_restart {
+            app.pending_admin_restart = false;
+            // The main.rs will handle the actual restart
+            return Ok(None);
+        }
+
         // Render
         terminal.draw(|frame| {
             let area = frame.area();

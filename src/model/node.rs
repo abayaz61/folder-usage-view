@@ -17,6 +17,7 @@ pub struct TreeNode {
     pub metadata: Option<NodeMetadata>,
     pub selected: bool,
     pub depth: u16,
+    pub children_populated: bool,
 }
 
 impl TreeNode {
@@ -31,6 +32,7 @@ impl TreeNode {
             metadata: None,
             selected: false,
             depth,
+            children_populated: false,
         }
     }
 
@@ -45,11 +47,19 @@ impl TreeNode {
             metadata: None,
             selected: false,
             depth,
+            children_populated: true, // Files don't have children
         }
     }
 
     pub fn is_dir(&self) -> bool {
         matches!(self.entry_type, EntryType::Directory)
+    }
+
+    pub fn category(&self) -> FileCategory {
+        match self.entry_type {
+            EntryType::File(category) => category,
+            _ => FileCategory::Other,
+        }
     }
 }
 

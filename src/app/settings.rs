@@ -40,6 +40,8 @@ pub struct Settings {
     pub delete_to_trash: bool,
     #[serde(default = "default_true")]
     pub show_delete_confirmation: bool,
+    #[serde(default)]
+    pub run_as_admin: bool,
 }
 
 fn default_true() -> bool {
@@ -59,6 +61,7 @@ impl Default for Settings {
             allow_delete: false,
             delete_to_trash: false,
             show_delete_confirmation: true,
+            run_as_admin: false,
         }
     }
 }
@@ -111,8 +114,67 @@ pub mod windows {
     use std::process::Command;
     use std::path::PathBuf;
     use std::fs;
+    use std::os::windows::process::CommandExt;
 
     const INSTALL_DIR: &str = "FolderUsageView";
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    /// Check if the current process is running with admin privileges
+    pub fn is_running_as_admin() -> bool {
+        // Try using 'net session' command first - faster and more reliable
+        // This command fails with access denied if not running as admin
+        let output = Command::new("cmd")
+            .args(["/C", "net session >nul 2>&1 && echo true || echo false"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        match output {
+            Ok(o) => {
+                let result = String::from_utf8_lossy(&o.stdout).trim().to_lowercase();
+                result.contains("true")
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Relaunch the current application with admin privileges
+    pub fn relaunch_as_admin() -> Result<(), String> {
+        relaunch_as_admin_with_flag()
+    }
+
+    /// Relaunch the current application with admin privileges, adding --elevated flag
+    pub fn relaunch_as_admin_with_flag() -> Result<(), String> {
+        let exe_path = get_exe_path()
+            .ok_or("Could not get executable path")?;
+
+        // Collect existing args, filter out any existing --elevated flag
+        let args: Vec<String> = std::env::args()
+            .skip(1)
+            .filter(|arg| arg != "--elevated")
+            .collect();
+
+        // Add --elevated flag to prevent infinite loop
+        let args_str = if args.is_empty() {
+            "--elevated".to_string()
+        } else {
+            format!("{} --elevated", args.join(" "))
+        };
+
+        let ps_script = format!(
+            r#"Start-Process -FilePath '{}' -ArgumentList '{}' -Verb RunAs"#,
+            exe_path.to_string_lossy().replace("'", "''"),
+            args_str.replace("'", "''")
+        );
+
+        let result = Command::new("powershell")
+            .args(["-Command", &ps_script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+
+        drop(result);
+        Ok(())
+    }
 
     pub fn get_install_path() -> PathBuf {
         let program_files = std::env::var("ProgramFiles")
@@ -413,6 +475,13 @@ pub mod windows {
 
 #[cfg(not(windows))]
 pub mod windows {
+    pub fn is_running_as_admin() -> bool { false }
+    pub fn relaunch_as_admin() -> Result<(), String> {
+        Err("Admin elevation is only supported on Windows".to_string())
+    }
+    pub fn relaunch_as_admin_with_flag() -> Result<(), String> {
+        Err("Admin elevation is only supported on Windows".to_string())
+    }
     pub fn is_context_menu_registered() -> bool { false }
     pub fn register_context_menu() -> Result<(), String> {
         Err("Context menu is only supported on Windows".to_string())

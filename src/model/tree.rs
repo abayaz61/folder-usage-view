@@ -62,6 +62,29 @@ impl FileTree {
     ) -> Option<NodeId> {
         let parent_id = self.path_index.get(parent_path).copied()?;
 
+        // Check if the entry already exists (e.g., from populate_children_from_fs)
+        if let Some(&existing_id) = self.path_index.get(path) {
+            // Update existing node with size info
+            if !is_dir {
+                if let Some(node) = self.arena.get_mut(existing_id) {
+                    let old_size = node.size;
+                    let size_diff = size as i64 - old_size as i64;
+                    node.size = size;
+
+                    // Update statistics
+                    let category = node.category();
+                    let name = node.name.clone();
+                    self.statistics.add_file(category, size, existing_id, name);
+
+                    // Propagate size difference up to ancestors
+                    if size_diff > 0 {
+                        self.propagate_size(parent_id, size_diff as u64);
+                    }
+                }
+            }
+            return Some(existing_id);
+        }
+
         let name = path
             .file_name()
             .map(|s| s.to_string_lossy().to_string())
@@ -242,6 +265,88 @@ impl FileTree {
 
     pub fn total_nodes(&self) -> usize {
         self.arena.len()
+    }
+
+    /// Check if a node's children have been populated
+    pub fn has_children_populated(&self, id: NodeId) -> bool {
+        self.arena
+            .get(id)
+            .map(|node| !node.children.is_empty() || node.children_populated)
+            .unwrap_or(false)
+    }
+
+    /// Mark a node as having its children populated (even if empty)
+    pub fn mark_children_populated(&mut self, id: NodeId) {
+        if let Some(node) = self.arena.get_mut(id) {
+            node.children_populated = true;
+        }
+    }
+
+    /// Populate a directory's children by reading the filesystem directly
+    /// This is used when navigating into a directory during scanning
+    pub fn populate_children_from_fs(&mut self, id: NodeId) -> bool {
+        // Get the path for this node
+        let path = match self.get_path(id) {
+            Some(p) => p,
+            None => return false,
+        };
+
+        // Check if already populated
+        if self.has_children_populated(id) {
+            return true;
+        }
+
+        // Read directory contents
+        let entries = match std::fs::read_dir(&path) {
+            Ok(entries) => entries,
+            Err(_) => {
+                self.mark_children_populated(id);
+                return false;
+            }
+        };
+
+        // Get parent depth
+        let parent_depth = self.arena.get(id).map(|n| n.depth).unwrap_or(0);
+
+        for entry in entries.filter_map(|e| e.ok()) {
+            let entry_path = entry.path();
+            let name = entry_path
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            // Skip if already exists
+            if self.path_index.contains_key(&entry_path) {
+                continue;
+            }
+
+            let is_dir = entry_path.is_dir();
+            let depth = parent_depth + 1;
+
+            let node = if is_dir {
+                TreeNode::new_directory(name.clone(), Some(id), depth)
+            } else {
+                // Get file size
+                let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                let ext = entry_path
+                    .extension()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let category = FileCategory::from_extension(&ext);
+                TreeNode::new_file(name.clone(), size, Some(id), depth, category)
+            };
+
+            let child_id = self.arena.insert(node);
+            self.path_index.insert(entry_path, child_id);
+
+            // Add to parent
+            if let Some(parent) = self.arena.get_mut(id) {
+                parent.children.push(child_id);
+            }
+        }
+
+        self.mark_children_populated(id);
+        true
     }
 }
 

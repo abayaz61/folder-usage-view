@@ -30,7 +30,9 @@
       "Bash(git push:*)",
       "Bash(del \"\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\")",
       "Bash(cmd /c \"del /f /q \\\\.\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\")",
-      "Bash(cmd /c \"del /f /q \"\"\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\"\"\")"
+      "Bash(cmd /c \"del /f /q \"\"\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\"\"\")",
+      "Bash(git revert:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

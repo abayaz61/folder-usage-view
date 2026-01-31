@@ -14,6 +14,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use disk_usage_analyzer::app::{load_last_location, save_last_location, App, Config, Settings, StartupLocation};
+use disk_usage_analyzer::app::settings::windows as settings_windows;
 use disk_usage_analyzer::scanner::ParallelScanner;
 use disk_usage_analyzer::ui::run_app;
 
@@ -82,6 +83,10 @@ struct Args {
     /// Show hidden files and directories
     #[arg(long, default_value = "false")]
     show_hidden: bool,
+
+    /// Internal flag: already attempted admin elevation (prevents infinite loop)
+    #[arg(long, hide = true, default_value = "false")]
+    elevated: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -92,6 +97,23 @@ fn main() -> anyhow::Result<()> {
 
     // Safely load settings
     let settings = Settings::load();
+
+    // Check if we need to restart as admin (only if not already attempted)
+    let mut settings = settings;
+    if settings.run_as_admin && !args.elevated && !settings_windows::is_running_as_admin() {
+        // Restart with admin privileges
+        if settings_windows::relaunch_as_admin_with_flag().is_ok() {
+            // Exit current instance
+            return Ok(());
+        }
+        // If relaunch failed, continue normally
+    }
+
+    // If we have --elevated flag but still not admin, user declined UAC - reset the setting
+    if args.elevated && settings.run_as_admin && !settings_windows::is_running_as_admin() {
+        settings.run_as_admin = false;
+        let _ = settings.save();
+    }
 
     // Determine initial path based on settings
     let requested_path = if args.path == PathBuf::from(".") {
@@ -215,6 +237,25 @@ fn main() -> anyhow::Result<()> {
             Ok(None) => {
                 // Normal quit - save current location
                 let _ = save_last_location(&target_path);
+
+                // Check if we need to restart as admin (setting was just enabled)
+                // Only restart if not already elevated (prevent infinite loop)
+                let current_settings = Settings::load();
+                if current_settings.run_as_admin && !args.elevated && !settings_windows::is_running_as_admin() {
+                    // Restore terminal before restart
+                    let _ = disable_raw_mode();
+                    let _ = execute!(
+                        terminal.backend_mut(),
+                        LeaveAlternateScreen,
+                        DisableMouseCapture
+                    );
+                    let _ = terminal.show_cursor();
+
+                    // Restart with admin privileges
+                    let _ = settings_windows::relaunch_as_admin_with_flag();
+                    return Ok(());
+                }
+
                 break;
             }
             Err(e) => {

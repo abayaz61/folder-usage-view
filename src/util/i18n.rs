@@ -157,6 +157,11 @@ impl Strings {
         m.insert("settings.delete_permanent", "Permanent");
         m.insert("settings.delete_confirm", "Delete Confirmation");
         m.insert("settings.delete_confirm_desc", "Show confirmation dialog before deleting");
+        m.insert("settings.run_as_admin", "Run as Administrator");
+        m.insert("settings.run_as_admin_desc", "Always start with administrator privileges");
+        m.insert("settings.admin_status", "Admin Status");
+        m.insert("settings.admin_active", "Running as Admin");
+        m.insert("settings.admin_not_active", "Standard User");
         m.insert("settings.enabled", "Enabled");
         m.insert("settings.disabled", "Disabled");
         m.insert("settings.registered", "Registered");
@@ -345,6 +350,11 @@ impl Strings {
         m.insert("settings.delete_permanent", "Kalıcı");
         m.insert("settings.delete_confirm", "Silme Onayı");
         m.insert("settings.delete_confirm_desc", "Silmeden önce onay penceresi göster");
+        m.insert("settings.run_as_admin", "Yönetici Olarak Çalıştır");
+        m.insert("settings.run_as_admin_desc", "Her zaman yönetici yetkileriyle başlat");
+        m.insert("settings.admin_status", "Yönetici Durumu");
+        m.insert("settings.admin_active", "Yönetici Olarak Çalışıyor");
+        m.insert("settings.admin_not_active", "Standart Kullanıcı");
         m.insert("settings.enabled", "Etkin");
         m.insert("settings.disabled", "Devre Dışı");
         m.insert("settings.registered", "Kayıtlı");

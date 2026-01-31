@@ -261,6 +261,26 @@ impl Widget for SettingsWidget<'_> {
             self.app.settings.show_delete_confirmation,
         ));
 
+        // Run as Admin option
+        let is_admin = windows::is_running_as_admin();
+        let admin_value = if self.app.settings.run_as_admin {
+            s.get("settings.enabled")
+        } else {
+            s.get("settings.disabled")
+        };
+        let admin_desc = if is_admin {
+            s.get("settings.admin_active")
+        } else {
+            s.get("settings.admin_not_active")
+        };
+        lines.extend(self.render_option(
+            11,
+            s.get("settings.run_as_admin"),
+            admin_value,
+            &format!("{} - {}", s.get("settings.run_as_admin_desc"), admin_desc),
+            self.app.settings.run_as_admin,
+        ));
+
         // Footer
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
