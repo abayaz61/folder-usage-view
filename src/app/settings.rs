@@ -314,7 +314,7 @@ pub mod windows {
 
     pub fn is_path_registered() -> bool {
         let install_path = get_install_path();
-        let exe_path = install_path.join("folder-usage-view.exe");
+        let exe_path = install_path.join("dua.exe");
         exe_path.exists()
     }
 
@@ -327,8 +327,8 @@ pub mod windows {
         fs::create_dir_all(&install_path)
             .map_err(|e| format!("Failed to create directory: {}. Run as Administrator.", e))?;
 
-        // Copy executable
-        let dest_exe = install_path.join("folder-usage-view.exe");
+        // Copy executable as 'dua.exe' so users can run 'dua' from command line
+        let dest_exe = install_path.join("dua.exe");
         fs::copy(&source_exe, &dest_exe)
             .map_err(|e| format!("Failed to copy executable: {}. Run as Administrator.", e))?;
 

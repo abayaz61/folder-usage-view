@@ -135,8 +135,8 @@ impl Strings {
         m.insert("settings.context_menu_desc", "Add 'Usage Analytics' to right-click menu");
         m.insert("settings.startup", "Startup Location");
         m.insert("settings.startup_desc", "Where to start when launching the app");
-        m.insert("settings.path_reg", "System PATH Registration");
-        m.insert("settings.path_reg_desc", "Install to Program Files and add to PATH");
+        m.insert("settings.path_reg", "Console Command (dua)");
+        m.insert("settings.path_reg_desc", "Run 'dua' from any terminal to open in current folder");
         m.insert("settings.start_menu", "Start Menu Shortcut");
         m.insert("settings.start_menu_desc", "Create shortcut in Windows Start Menu");
         m.insert("settings.desktop", "Desktop Shortcut");
@@ -227,8 +227,8 @@ impl Strings {
         m.insert("msg.failed", "failed");
         m.insert("msg.context_menu_added", "Context menu registered");
         m.insert("msg.context_menu_removed", "Context menu removed");
-        m.insert("msg.path_registered", "Registered to PATH");
-        m.insert("msg.path_removed", "Removed from PATH");
+        m.insert("msg.path_registered", "'dua' command registered - restart terminal to use");
+        m.insert("msg.path_removed", "'dua' command removed from PATH");
         m.insert("msg.shortcut_created", "shortcut created");
         m.insert("msg.shortcut_removed", "shortcut removed");
         m.insert("msg.start_menu", "Start Menu");
@@ -328,8 +328,8 @@ impl Strings {
         m.insert("settings.context_menu_desc", "Sağ tık menüsüne 'Kullanım Analizi' ekle");
         m.insert("settings.startup", "Başlangıç Konumu");
         m.insert("settings.startup_desc", "Uygulama açıldığında başlanacak konum");
-        m.insert("settings.path_reg", "Sistem PATH Kaydı");
-        m.insert("settings.path_reg_desc", "Program Files'a kur ve PATH'e ekle");
+        m.insert("settings.path_reg", "Konsol Komutu (dua)");
+        m.insert("settings.path_reg_desc", "Herhangi bir terminalde 'dua' yazarak mevcut klasörde aç");
         m.insert("settings.start_menu", "Başlat Menüsü Kısayolu");
         m.insert("settings.start_menu_desc", "Başlat menüsünde kısayol oluştur");
         m.insert("settings.desktop", "Masaüstü Kısayolu");
@@ -420,8 +420,8 @@ impl Strings {
         m.insert("msg.failed", "başarısız");
         m.insert("msg.context_menu_added", "Sağ tık menüsü eklendi");
         m.insert("msg.context_menu_removed", "Sağ tık menüsü kaldırıldı");
-        m.insert("msg.path_registered", "PATH'e kaydedildi");
-        m.insert("msg.path_removed", "PATH'ten kaldırıldı");
+        m.insert("msg.path_registered", "'dua' komutu kaydedildi - terminali yeniden başlatın");
+        m.insert("msg.path_removed", "'dua' komutu PATH'ten kaldırıldı");
         m.insert("msg.shortcut_created", "kısayolu oluşturuldu");
         m.insert("msg.shortcut_removed", "kısayolu kaldırıldı");
         m.insert("msg.start_menu", "Başlat Menüsü");

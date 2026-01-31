@@ -92,6 +92,17 @@ cargo build --release
 
 The binary will be at `target/release/dua.exe`
 
+### Register Console Command
+
+To use `dua` command from any terminal:
+
+1. Run the application
+2. Press `s` to open Settings
+3. Enable **"Console Command (dua)"** (requires Administrator)
+4. Restart your terminal
+
+Now you can run `dua` from any folder!
+
 ## Usage
 
 ### Basic Usage
@@ -193,7 +204,7 @@ Access settings by pressing `s`. All settings are saved automatically.
 |---------|-------------|
 | **Context Menu** | Add "Usage Analytics" to Windows right-click menu |
 | **Startup Location** | Where to start (Last Location / Current Folder / Computer View) |
-| **System PATH** | Install to Program Files and add to PATH |
+| **Console Command (dua)** | Register `dua` command to run from any terminal |
 | **Start Menu Shortcut** | Create shortcut in Windows Start Menu |
 | **Desktop Shortcut** | Create shortcut on Desktop |
 
