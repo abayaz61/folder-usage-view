@@ -3,12 +3,11 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind, MouseButton};
-use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-use ratatui::Terminal;
+use ratatui::DefaultTerminal;
 
 use crate::app::{App, AppMode, ViewMode};
 use crate::model::get_all_drives;
@@ -18,7 +17,7 @@ use crate::util::i18n::Strings;
 const TICK_RATE: Duration = Duration::from_millis(16); // ~60 FPS
 
 /// Result of run_app: None means quit, Some(path) means rescan with new path
-pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<Option<PathBuf>> {
+pub fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<Option<PathBuf>> {
     let mut last_tick = Instant::now();
     let mut terminal_width: u16 = 80;
     let mut terminal_height: u16 = 24;

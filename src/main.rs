@@ -1,34 +1,17 @@
 use std::io;
-use std::panic;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
 use clap::Parser;
-use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
-use ratatui::backend::CrosstermBackend;
-use ratatui::Terminal;
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use crossterm::execute;
+use ratatui::DefaultTerminal;
 
 use disk_usage_analyzer::app::{load_last_location, save_last_location, App, Config, Settings, StartupLocation};
 use disk_usage_analyzer::app::settings::windows as settings_windows;
 use disk_usage_analyzer::scanner::ParallelScanner;
 use disk_usage_analyzer::ui::run_app;
-
-fn setup_panic_hook() {
-    let original_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |panic_info| {
-        // Restore terminal
-        let _ = disable_raw_mode();
-        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
-
-        // Call original panic hook
-        original_hook(panic_info);
-    }));
-}
 
 /// Try to find a valid directory by walking up the path tree
 /// Returns None if no valid directory found (should switch to Computer view)
@@ -90,9 +73,6 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    // Setup panic hook to restore terminal on crash
-    setup_panic_hook();
-
     let args = Args::parse();
 
     // Safely load settings
@@ -136,7 +116,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     // Try to find a valid path, walking up if needed
-    let (mut target_path, start_in_computer_view) = match find_valid_path(requested_path.clone()) {
+    let (target_path, start_in_computer_view) = match find_valid_path(requested_path.clone()) {
         Some(valid_path) => {
             // Canonicalize if possible
             let path = valid_path.canonicalize().unwrap_or(valid_path);
@@ -150,14 +130,61 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    // Setup terminal
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    // Initialize terminal with ratatui (includes panic hook automatically)
+    let mut terminal = ratatui::init();
 
-    let mut final_scan_result: Option<disk_usage_analyzer::scanner::ScanResult> = None;
+    // Enable mouse capture
+    execute!(io::stdout(), EnableMouseCapture)?;
+
+    // Run the application
+    let result = run_main_loop(&mut terminal, &args, &settings, target_path, start_in_computer_view);
+
+    // Disable mouse capture before restore
+    let _ = execute!(io::stdout(), DisableMouseCapture);
+
+    // Restore terminal (handles raw mode, alternate screen, cursor)
+    ratatui::restore();
+
+    // Handle admin restart if needed
+    if let Ok((true, _)) = &result {
+        let current_settings = Settings::load();
+        if current_settings.run_as_admin && !args.elevated && !settings_windows::is_running_as_admin() {
+            let _ = settings_windows::relaunch_as_admin_with_flag();
+            return Ok(());
+        }
+    }
+
+    // Return result or print final stats
+    match result {
+        Ok((_, final_scan_result)) => {
+            if let Some(scan_result) = final_scan_result {
+                println!("\nScan completed:");
+                println!(
+                    "  Total size: {}",
+                    disk_usage_analyzer::util::format::format_size(scan_result.total_size)
+                );
+                println!("  Files: {}", scan_result.total_files);
+                println!("  Directories: {}", scan_result.total_dirs);
+                println!("  Duration: {:.2}s", scan_result.duration.as_secs_f64());
+                if scan_result.error_count > 0 {
+                    println!("  Errors: {}", scan_result.error_count);
+                }
+            }
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Main application loop - returns (should_check_admin_restart, final_scan_result)
+fn run_main_loop(
+    terminal: &mut DefaultTerminal,
+    args: &Args,
+    settings: &Settings,
+    mut target_path: PathBuf,
+    start_in_computer_view: bool,
+) -> anyhow::Result<(bool, Option<disk_usage_analyzer::scanner::ScanResult>)> {
+    let mut final_scan_result: Option<disk_usage_analyzer::scanner::ScanResult>;
     let mut first_run = true;
 
     // Main loop - allows rescanning when navigating to parent directory
@@ -178,7 +205,7 @@ fn main() -> anyhow::Result<()> {
             first_run = false;
 
             // Run the app without starting a scan
-            let result = run_app(&mut terminal, &mut app);
+            let result = run_app(terminal, &mut app);
 
             match result {
                 Ok(Some(new_path)) => {
@@ -187,16 +214,9 @@ fn main() -> anyhow::Result<()> {
                     continue;
                 }
                 Ok(None) => {
-                    break;
+                    return Ok((false, None));
                 }
                 Err(e) => {
-                    let _ = disable_raw_mode();
-                    let _ = execute!(
-                        terminal.backend_mut(),
-                        LeaveAlternateScreen,
-                        DisableMouseCapture
-                    );
-                    let _ = terminal.show_cursor();
                     return Err(e.into());
                 }
             }
@@ -221,7 +241,7 @@ fn main() -> anyhow::Result<()> {
         });
 
         // Run the app
-        let result = run_app(&mut terminal, &mut app);
+        let result = run_app(terminal, &mut app);
 
         // Store scan result for final output
         final_scan_result = app.scan_result.take();
@@ -237,64 +257,11 @@ fn main() -> anyhow::Result<()> {
             Ok(None) => {
                 // Normal quit - save current location
                 let _ = save_last_location(&target_path);
-
-                // Check if we need to restart as admin (setting was just enabled)
-                // Only restart if not already elevated (prevent infinite loop)
-                let current_settings = Settings::load();
-                if current_settings.run_as_admin && !args.elevated && !settings_windows::is_running_as_admin() {
-                    // Restore terminal before restart
-                    let _ = disable_raw_mode();
-                    let _ = execute!(
-                        terminal.backend_mut(),
-                        LeaveAlternateScreen,
-                        DisableMouseCapture
-                    );
-                    let _ = terminal.show_cursor();
-
-                    // Restart with admin privileges
-                    let _ = settings_windows::relaunch_as_admin_with_flag();
-                    return Ok(());
-                }
-
-                break;
+                return Ok((true, final_scan_result));
             }
             Err(e) => {
-                // Restore terminal before returning error
-                let _ = disable_raw_mode();
-                let _ = execute!(
-                    terminal.backend_mut(),
-                    LeaveAlternateScreen,
-                    DisableMouseCapture
-                );
-                let _ = terminal.show_cursor();
                 return Err(e.into());
             }
         }
     }
-
-    // Restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    // Print final stats if scan completed
-    if let Some(scan_result) = &final_scan_result {
-        println!("\nScan completed:");
-        println!(
-            "  Total size: {}",
-            disk_usage_analyzer::util::format::format_size(scan_result.total_size)
-        );
-        println!("  Files: {}", scan_result.total_files);
-        println!("  Directories: {}", scan_result.total_dirs);
-        println!("  Duration: {:.2}s", scan_result.duration.as_secs_f64());
-        if scan_result.error_count > 0 {
-            println!("  Errors: {}", scan_result.error_count);
-        }
-    }
-
-    Ok(())
 }
