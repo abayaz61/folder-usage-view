@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::app::{App, StartupLocation};
 use crate::app::settings::windows;
+use crate::platform::get_platform_labels;
 use crate::util::i18n::Strings;
 
 pub struct SettingsWidget<'a> {
@@ -72,6 +73,7 @@ impl Widget for SettingsWidget<'_> {
         let s = Strings::new(lang);
         let theme = self.app.theme();
         let icons = self.app.icons();
+        let _platform_labels = get_platform_labels();
 
         let block = Block::default()
             .borders(Borders::ALL)

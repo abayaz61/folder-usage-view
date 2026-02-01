@@ -26,9 +26,10 @@
 - **Interactive Treemap** - Visual representation of disk usage with color-coded file types
 - **Multiple View Modes** - Treemap, List, and Split views
 - **Real-time Statistics** - Live scanning progress with speed metrics
-- **File Management** - Delete files/folders with Recycle Bin support
+- **File Management** - Delete files/folders with Trash/Recycle Bin support
 - **Drive Navigation** - Browse all drives from Computer View
-- **Windows Integration** - Context menu, Start Menu, and Desktop shortcuts
+- **Cross-Platform** - Native support for Windows, Linux, and macOS
+- **Platform Integration** - Context menus, shortcuts, and system PATH registration
 - **Multi-language Support** - English and Turkish
 - **10 Color Themes** - Including high contrast themes for RDP
 - **Portable** - Single executable, no installation required
@@ -90,7 +91,9 @@ cd folder-usage-view
 cargo build --release
 ```
 
-The binary will be at `target/release/dua.exe`
+The binary will be at:
+- **Windows**: `target/release/dua.exe`
+- **Linux/macOS**: `target/release/dua`
 
 ### Register Console Command
 
@@ -172,7 +175,7 @@ dua --show-hidden
 | Key | Action |
 |-----|--------|
 | `Enter` | Open file with default application |
-| `e` | Open current folder in Explorer |
+| `e` | Open current folder in file manager |
 | `d` | Delete selected items (shows confirmation) |
 | `Delete` | Delete current item directly |
 | `g` | Open drive selector / Refresh drives |
@@ -200,13 +203,13 @@ Access settings by pressing `s`. All settings are saved automatically.
 
 ### General Settings
 
-| Setting | Description |
-|---------|-------------|
-| **Context Menu** | Add "Usage Analytics" to Windows right-click menu |
-| **Startup Location** | Where to start (Last Location / Current Folder / Computer View) |
-| **Console Command (dua)** | Register `dua` command to run from any terminal |
-| **Start Menu Shortcut** | Create shortcut in Windows Start Menu |
-| **Desktop Shortcut** | Create shortcut on Desktop |
+| Setting | Windows | Linux | macOS |
+|---------|---------|-------|-------|
+| **Context Menu** | Explorer right-click menu | Nautilus scripts / KDE service menu | Finder Services |
+| **Startup Location** | Where to start (Last Location / Current Folder / Computer View) |||
+| **Console Command (dua)** | `C:\Program Files\FolderUsageView` | `~/.local/bin/dua` symlink | `/usr/local/bin/dua` symlink |
+| **Menu Shortcut** | Start Menu shortcut | `.desktop` in `~/.local/share/applications` | App in `~/Applications` |
+| **Desktop Shortcut** | Desktop `.lnk` file | Desktop `.desktop` file | Finder alias |
 
 ### Appearance
 
@@ -221,8 +224,10 @@ Access settings by pressing `s`. All settings are saved automatically.
 | Setting | Description |
 |---------|-------------|
 | **Allow Delete** | Enable/disable delete functionality |
-| **Delete Method** | Recycle Bin / Permanent |
+| **Delete Method** | Trash (Recycle Bin on Windows) / Permanent |
 | **Delete Confirmation** | Show confirmation dialog before deleting |
+
+> **Note:** Trash support works natively on all platforms using the system's trash mechanism.
 
 ## Color Themes
 
@@ -273,7 +278,14 @@ Typical performance on modern hardware:
 ### Requirements
 
 - Rust 1.70 or later
-- Windows 10/11 (for Windows-specific features)
+
+### Platform-Specific Requirements
+
+| Platform | Requirements |
+|----------|--------------|
+| **Windows** | Windows 10/11 |
+| **Linux** | `build-essential`, `pkg-config` |
+| **macOS** | Xcode Command Line Tools |
 
 ### Build Commands
 
@@ -284,8 +296,31 @@ cargo build
 # Release build (optimized)
 cargo build --release
 
-# Run directly
+# Run directly (Windows)
 cargo run --release -- --path "C:\"
+
+# Run directly (Linux/macOS)
+cargo run --release -- --path /home
+```
+
+### Building on Linux (Ubuntu/Debian)
+
+```bash
+# Install dependencies
+sudo apt-get install build-essential pkg-config
+
+# Build
+cargo build --release
+```
+
+### Building on macOS
+
+```bash
+# Install Xcode Command Line Tools
+xcode-select --install
+
+# Build
+cargo build --release
 ```
 
 ### Build Features
@@ -311,6 +346,11 @@ folder-usage-view/
 │   │   ├── node.rs       # File tree nodes
 │   │   ├── tree.rs       # File tree
 │   │   └── drives.rs     # Drive information
+│   ├── platform/         # Platform-specific code
+│   │   ├── mod.rs        # Platform detection
+│   │   ├── windows.rs    # Windows implementation
+│   │   ├── linux.rs      # Linux implementation
+│   │   └── macos.rs      # macOS implementation
 │   ├── scanner/          # Filesystem scanning
 │   │   ├── parallel.rs   # Parallel scanner
 │   │   └── entry.rs      # Scan entries

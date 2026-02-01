@@ -226,20 +226,10 @@ impl App {
             self.config.target_path.clone()
         };
 
-        // Open in Windows Explorer
-        #[cfg(target_os = "windows")]
-        {
-            use std::process::Command;
-            if let Err(e) = Command::new("explorer").arg(&path).spawn() {
-                self.message = Some(format!("Failed to open Explorer: {}", e));
-            } else {
-                self.message = Some(format!("Opened: {}", path.display()));
-            }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            self.message = Some("Explorer is only available on Windows".to_string());
+        // Open in file manager (cross-platform)
+        match open::that_detached(&path) {
+            Ok(()) => self.message = Some(format!("Opened: {}", path.display())),
+            Err(e) => self.message = Some(format!("Failed to open: {}", e)),
         }
     }
 
@@ -268,31 +258,11 @@ impl App {
         }
     }
 
-    /// Open a path with the default system application
+    /// Open a path with the default system application (cross-platform)
     fn open_path_with_system(&mut self, path: &PathBuf) {
-        #[cfg(target_os = "windows")]
-        {
-            use std::process::Command;
-            // Use 'start' command which opens files with their default application
-            if let Err(e) = Command::new("cmd")
-                .args(["/C", "start", "", &path.display().to_string()])
-                .spawn()
-            {
-                self.message = Some(format!("Failed to open: {}", e));
-            } else {
-                self.message = Some(format!("Opened: {}", path.display()));
-            }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            use std::process::Command;
-            // Use xdg-open on Linux
-            if let Err(e) = Command::new("xdg-open").arg(path).spawn() {
-                self.message = Some(format!("Failed to open: {}", e));
-            } else {
-                self.message = Some(format!("Opened: {}", path.display()));
-            }
+        match open::that_detached(path) {
+            Ok(()) => self.message = Some(format!("Opened: {}", path.display())),
+            Err(e) => self.message = Some(format!("Failed to open: {}", e)),
         }
     }
 
@@ -636,41 +606,11 @@ impl App {
         results
     }
 
-    /// Move a file or directory to the Recycle Bin (Windows) or Trash (other platforms)
-    #[cfg(target_os = "windows")]
+    /// Move a file or directory to the Recycle Bin/Trash (cross-platform)
     fn move_to_trash(path: &PathBuf) -> Result<(), std::io::Error> {
-        use std::process::Command;
-
-        // Use PowerShell to move to Recycle Bin
-        let path_str = path.display().to_string();
-        let script = format!(
-            r#"Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('{}', 'OnlyErrorDialogs', 'SendToRecycleBin')"#,
-            path_str.replace("'", "''")
-        );
-
-        let output = Command::new("powershell")
-            .args(["-NoProfile", "-Command", &script])
-            .output()?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to move to Recycle Bin: {}", stderr),
-            ))
-        }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    fn move_to_trash(path: &PathBuf) -> Result<(), std::io::Error> {
-        // On non-Windows, fall back to permanent deletion
-        if path.is_dir() {
-            std::fs::remove_dir_all(path)
-        } else {
-            std::fs::remove_file(path)
-        }
+        trash::delete(path).map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, format!("Trash error: {}", e))
+        })
     }
 
     pub fn toggle_help(&mut self) {

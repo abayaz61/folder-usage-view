@@ -108,406 +108,127 @@ impl Settings {
     }
 }
 
-// Windows-specific functions for registry and PATH
-#[cfg(windows)]
+// Platform-specific module re-exports for backwards compatibility
+// The actual implementations are now in src/platform/
 pub mod windows {
-    use std::process::Command;
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     use std::path::PathBuf;
-    use std::fs;
-    use std::os::windows::process::CommandExt;
 
-    const INSTALL_DIR: &str = "FolderUsageView";
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    #[cfg(target_os = "windows")]
+    pub use crate::platform::{
+        create_desktop_shortcut, create_start_menu_shortcut, get_desktop_path, get_install_path,
+        get_start_menu_path, is_context_menu_registered, is_desktop_shortcut_exists,
+        is_path_registered, is_running_as_admin, is_start_menu_shortcut_exists, register_context_menu,
+        register_to_path, relaunch_as_admin, relaunch_as_admin_with_flag, remove_desktop_shortcut,
+        remove_start_menu_shortcut, unregister_context_menu, unregister_from_path,
+    };
 
-    /// Check if the current process is running with admin privileges
+    #[cfg(target_os = "linux")]
+    pub use crate::platform::{
+        create_desktop_shortcut, create_menu_entry as create_start_menu_shortcut,
+        get_desktop_path, get_local_bin_path as get_install_path,
+        get_applications_path as get_start_menu_path, is_context_menu_registered,
+        is_desktop_shortcut_exists, is_menu_entry_exists as is_start_menu_shortcut_exists,
+        is_path_registered, is_running_as_root as is_running_as_admin, register_context_menu,
+        register_to_path, relaunch_as_root as relaunch_as_admin,
+        remove_desktop_shortcut, remove_menu_entry as remove_start_menu_shortcut,
+        unregister_context_menu, unregister_from_path,
+    };
+
+    #[cfg(target_os = "linux")]
+    pub fn relaunch_as_admin_with_flag() -> Result<(), String> {
+        relaunch_as_admin()
+    }
+
+    #[cfg(target_os = "macos")]
+    pub use crate::platform::{
+        create_desktop_alias as create_desktop_shortcut,
+        create_applications_entry as create_start_menu_shortcut, get_desktop_path,
+        get_local_bin_path as get_install_path,
+        get_user_applications_path as get_start_menu_path, is_context_menu_registered,
+        is_desktop_alias_exists as is_desktop_shortcut_exists,
+        is_applications_entry_exists as is_start_menu_shortcut_exists, is_path_registered,
+        is_running_as_root as is_running_as_admin, register_context_menu, register_to_path,
+        relaunch_as_admin, remove_desktop_alias as remove_desktop_shortcut,
+        remove_applications_entry as remove_start_menu_shortcut, unregister_context_menu,
+        unregister_from_path,
+    };
+
+    #[cfg(target_os = "macos")]
+    pub fn relaunch_as_admin_with_flag() -> Result<(), String> {
+        relaunch_as_admin()
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn is_running_as_admin() -> bool {
-        // Try using 'net session' command first - faster and more reliable
-        // This command fails with access denied if not running as admin
-        let output = Command::new("cmd")
-            .args(["/C", "net session >nul 2>&1 && echo true || echo false"])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
-
-        match output {
-            Ok(o) => {
-                let result = String::from_utf8_lossy(&o.stdout).trim().to_lowercase();
-                result.contains("true")
-            }
-            Err(_) => false,
-        }
+        false
     }
-
-    /// Relaunch the current application with admin privileges
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn relaunch_as_admin() -> Result<(), String> {
-        relaunch_as_admin_with_flag()
+        Err("Admin elevation is not supported on this platform".to_string())
     }
-
-    /// Relaunch the current application with admin privileges, adding --elevated flag
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn relaunch_as_admin_with_flag() -> Result<(), String> {
-        let exe_path = get_exe_path()
-            .ok_or("Could not get executable path")?;
-
-        // Collect existing args, filter out any existing --elevated flag
-        let args: Vec<String> = std::env::args()
-            .skip(1)
-            .filter(|arg| arg != "--elevated")
-            .collect();
-
-        // Add --elevated flag to prevent infinite loop
-        let args_str = if args.is_empty() {
-            "--elevated".to_string()
-        } else {
-            format!("{} --elevated", args.join(" "))
-        };
-
-        let ps_script = format!(
-            r#"Start-Process -FilePath '{}' -ArgumentList '{}' -Verb RunAs"#,
-            exe_path.to_string_lossy().replace("'", "''"),
-            args_str.replace("'", "''")
-        );
-
-        let result = Command::new("powershell")
-            .args(["-Command", &ps_script])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-
-        drop(result);
-        Ok(())
+        Err("Admin elevation is not supported on this platform".to_string())
     }
-
-    pub fn get_install_path() -> PathBuf {
-        let program_files = std::env::var("ProgramFiles")
-            .unwrap_or_else(|_| "C:\\Program Files".to_string());
-        PathBuf::from(program_files).join(INSTALL_DIR)
-    }
-
-    pub fn get_exe_path() -> Option<PathBuf> {
-        std::env::current_exe().ok()
-    }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn is_context_menu_registered() -> bool {
-        let output = Command::new("reg")
-            .args(["query", r"HKEY_CLASSES_ROOT\Directory\shell\FolderUsageView"])
-            .output();
-
-        matches!(output, Ok(o) if o.status.success())
+        false
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn register_context_menu() -> Result<(), String> {
-        let exe_path = get_exe_path()
-            .ok_or("Could not get executable path")?;
-
-        let exe_str = exe_path.to_string_lossy();
-
-        // Create the shell key
-        let result = Command::new("reg")
-            .args([
-                "add",
-                r"HKEY_CLASSES_ROOT\Directory\shell\FolderUsageView",
-                "/ve",
-                "/d",
-                "Usage Analytics",
-                "/f"
-            ])
-            .output()
-            .map_err(|e| e.to_string())?;
-
-        if !result.status.success() {
-            return Err("Failed to create registry key. Run as Administrator.".to_string());
-        }
-
-        // Set icon
-        let _ = Command::new("reg")
-            .args([
-                "add",
-                r"HKEY_CLASSES_ROOT\Directory\shell\FolderUsageView",
-                "/v",
-                "Icon",
-                "/d",
-                &format!("{},0", exe_str),
-                "/f"
-            ])
-            .output();
-
-        // Create command key
-        let command = format!("\"{}\" --path \"%V\"", exe_str);
-        let result = Command::new("reg")
-            .args([
-                "add",
-                r"HKEY_CLASSES_ROOT\Directory\shell\FolderUsageView\command",
-                "/ve",
-                "/d",
-                &command,
-                "/f"
-            ])
-            .output()
-            .map_err(|e| e.to_string())?;
-
-        if !result.status.success() {
-            return Err("Failed to create command key. Run as Administrator.".to_string());
-        }
-
-        // Also add for Directory Background (right-click in folder background)
-        let _ = Command::new("reg")
-            .args([
-                "add",
-                r"HKEY_CLASSES_ROOT\Directory\Background\shell\FolderUsageView",
-                "/ve",
-                "/d",
-                "Usage Analytics",
-                "/f"
-            ])
-            .output();
-
-        let _ = Command::new("reg")
-            .args([
-                "add",
-                r"HKEY_CLASSES_ROOT\Directory\Background\shell\FolderUsageView",
-                "/v",
-                "Icon",
-                "/d",
-                &format!("{},0", exe_str),
-                "/f"
-            ])
-            .output();
-
-        let command_bg = format!("\"{}\" --path \"%V\"", exe_str);
-        let _ = Command::new("reg")
-            .args([
-                "add",
-                r"HKEY_CLASSES_ROOT\Directory\Background\shell\FolderUsageView\command",
-                "/ve",
-                "/d",
-                &command_bg,
-                "/f"
-            ])
-            .output();
-
-        Ok(())
+        Err("Context menu is not supported on this platform".to_string())
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn unregister_context_menu() -> Result<(), String> {
-        let result = Command::new("reg")
-            .args([
-                "delete",
-                r"HKEY_CLASSES_ROOT\Directory\shell\FolderUsageView",
-                "/f"
-            ])
-            .output()
-            .map_err(|e| e.to_string())?;
-
-        let _ = Command::new("reg")
-            .args([
-                "delete",
-                r"HKEY_CLASSES_ROOT\Directory\Background\shell\FolderUsageView",
-                "/f"
-            ])
-            .output();
-
-        if !result.status.success() {
-            return Err("Failed to remove registry key. Run as Administrator.".to_string());
-        }
-
-        Ok(())
+        Err("Context menu is not supported on this platform".to_string())
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn is_path_registered() -> bool {
-        let install_path = get_install_path();
-        let exe_path = install_path.join("dua.exe");
-        exe_path.exists()
+        false
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn register_to_path() -> Result<(), String> {
-        let install_path = get_install_path();
-        let source_exe = get_exe_path()
-            .ok_or("Could not get executable path")?;
-
-        // Create install directory
-        fs::create_dir_all(&install_path)
-            .map_err(|e| format!("Failed to create directory: {}. Run as Administrator.", e))?;
-
-        // Copy executable as 'dua.exe' so users can run 'dua' from command line
-        let dest_exe = install_path.join("dua.exe");
-        fs::copy(&source_exe, &dest_exe)
-            .map_err(|e| format!("Failed to copy executable: {}. Run as Administrator.", e))?;
-
-        // Add to system PATH
-        let install_path_str = install_path.to_string_lossy();
-        let result = Command::new("powershell")
-            .args([
-                "-Command",
-                &format!(
-                    r#"$path = [Environment]::GetEnvironmentVariable('Path', 'Machine'); if ($path -notlike '*{}*') {{ [Environment]::SetEnvironmentVariable('Path', $path + ';{}', 'Machine') }}"#,
-                    install_path_str, install_path_str
-                )
-            ])
-            .output()
-            .map_err(|e| e.to_string())?;
-
-        if !result.status.success() {
-            return Err("Failed to update PATH. Run as Administrator.".to_string());
-        }
-
-        Ok(())
+        Err("PATH registration is not supported on this platform".to_string())
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn unregister_from_path() -> Result<(), String> {
-        let install_path = get_install_path();
-
-        // Remove from PATH
-        let install_path_str = install_path.to_string_lossy();
-        let _ = Command::new("powershell")
-            .args([
-                "-Command",
-                &format!(
-                    r#"$path = [Environment]::GetEnvironmentVariable('Path', 'Machine'); $newPath = ($path -split ';' | Where-Object {{ $_ -ne '{}' }}) -join ';'; [Environment]::SetEnvironmentVariable('Path', $newPath, 'Machine')"#,
-                    install_path_str
-                )
-            ])
-            .output();
-
-        // Remove installed files
-        if install_path.exists() {
-            fs::remove_dir_all(&install_path)
-                .map_err(|e| format!("Failed to remove directory: {}. Run as Administrator.", e))?;
-        }
-
-        Ok(())
+        Err("PATH registration is not supported on this platform".to_string())
     }
-
-    pub fn get_start_menu_path() -> PathBuf {
-        let appdata = std::env::var("APPDATA")
-            .unwrap_or_else(|_| "C:\\Users\\Default\\AppData\\Roaming".to_string());
-        PathBuf::from(appdata)
-            .join("Microsoft")
-            .join("Windows")
-            .join("Start Menu")
-            .join("Programs")
-    }
-
-    pub fn get_desktop_path() -> PathBuf {
-        let userprofile = std::env::var("USERPROFILE")
-            .unwrap_or_else(|_| "C:\\Users\\Default".to_string());
-        PathBuf::from(userprofile).join("Desktop")
-    }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn is_start_menu_shortcut_exists() -> bool {
-        let shortcut_path = get_start_menu_path().join("Disk Usage Analyzer.lnk");
-        shortcut_path.exists()
+        false
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn is_desktop_shortcut_exists() -> bool {
-        let shortcut_path = get_desktop_path().join("Disk Usage Analyzer.lnk");
-        shortcut_path.exists()
+        false
     }
-
-    pub fn create_shortcut(target_path: &str, shortcut_path: &str, description: &str) -> Result<(), String> {
-        let ps_script = format!(
-            r#"$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{}'); $Shortcut.TargetPath = '{}'; $Shortcut.Description = '{}'; $Shortcut.WorkingDirectory = '%USERPROFILE%'; $Shortcut.Save()"#,
-            shortcut_path.replace("'", "''"),
-            target_path.replace("'", "''"),
-            description.replace("'", "''")
-        );
-
-        let result = Command::new("powershell")
-            .args(["-Command", &ps_script])
-            .output()
-            .map_err(|e| e.to_string())?;
-
-        if !result.status.success() {
-            let stderr = String::from_utf8_lossy(&result.stderr);
-            return Err(format!("Failed to create shortcut: {}", stderr));
-        }
-
-        Ok(())
-    }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn create_start_menu_shortcut() -> Result<(), String> {
-        let exe_path = get_exe_path()
-            .ok_or("Could not get executable path")?;
-
-        let start_menu = get_start_menu_path();
-        fs::create_dir_all(&start_menu)
-            .map_err(|e| format!("Failed to create Start Menu directory: {}", e))?;
-
-        let shortcut_path = start_menu.join("Disk Usage Analyzer.lnk");
-
-        create_shortcut(
-            &exe_path.to_string_lossy(),
-            &shortcut_path.to_string_lossy(),
-            "Disk Usage Analyzer - Ultra high-performance disk usage analyzer"
-        )
+        Err("Menu shortcuts are not supported on this platform".to_string())
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn remove_start_menu_shortcut() -> Result<(), String> {
-        let shortcut_path = get_start_menu_path().join("Disk Usage Analyzer.lnk");
-        if shortcut_path.exists() {
-            fs::remove_file(&shortcut_path)
-                .map_err(|e| format!("Failed to remove shortcut: {}", e))?;
-        }
-        Ok(())
+        Err("Menu shortcuts are not supported on this platform".to_string())
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn create_desktop_shortcut() -> Result<(), String> {
-        let exe_path = get_exe_path()
-            .ok_or("Could not get executable path")?;
-
-        let desktop = get_desktop_path();
-        let shortcut_path = desktop.join("Disk Usage Analyzer.lnk");
-
-        create_shortcut(
-            &exe_path.to_string_lossy(),
-            &shortcut_path.to_string_lossy(),
-            "Disk Usage Analyzer - Ultra high-performance disk usage analyzer"
-        )
+        Err("Desktop shortcuts are not supported on this platform".to_string())
     }
-
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn remove_desktop_shortcut() -> Result<(), String> {
-        let shortcut_path = get_desktop_path().join("Disk Usage Analyzer.lnk");
-        if shortcut_path.exists() {
-            fs::remove_file(&shortcut_path)
-                .map_err(|e| format!("Failed to remove shortcut: {}", e))?;
-        }
-        Ok(())
+        Err("Desktop shortcuts are not supported on this platform".to_string())
     }
-}
-
-#[cfg(not(windows))]
-pub mod windows {
-    pub fn is_running_as_admin() -> bool { false }
-    pub fn relaunch_as_admin() -> Result<(), String> {
-        Err("Admin elevation is only supported on Windows".to_string())
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    pub fn get_install_path() -> PathBuf {
+        PathBuf::from("/usr/local/bin")
     }
-    pub fn relaunch_as_admin_with_flag() -> Result<(), String> {
-        Err("Admin elevation is only supported on Windows".to_string())
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    pub fn get_start_menu_path() -> PathBuf {
+        PathBuf::from("/usr/share/applications")
     }
-    pub fn is_context_menu_registered() -> bool { false }
-    pub fn register_context_menu() -> Result<(), String> {
-        Err("Context menu is only supported on Windows".to_string())
-    }
-    pub fn unregister_context_menu() -> Result<(), String> {
-        Err("Context menu is only supported on Windows".to_string())
-    }
-    pub fn is_path_registered() -> bool { false }
-    pub fn register_to_path() -> Result<(), String> {
-        Err("PATH registration is only supported on Windows".to_string())
-    }
-    pub fn unregister_from_path() -> Result<(), String> {
-        Err("PATH registration is only supported on Windows".to_string())
-    }
-    pub fn is_start_menu_shortcut_exists() -> bool { false }
-    pub fn is_desktop_shortcut_exists() -> bool { false }
-    pub fn create_start_menu_shortcut() -> Result<(), String> {
-        Err("Start menu shortcuts are only supported on Windows".to_string())
-    }
-    pub fn remove_start_menu_shortcut() -> Result<(), String> {
-        Err("Start menu shortcuts are only supported on Windows".to_string())
-    }
-    pub fn create_desktop_shortcut() -> Result<(), String> {
-        Err("Desktop shortcuts are only supported on Windows".to_string())
-    }
-    pub fn remove_desktop_shortcut() -> Result<(), String> {
-        Err("Desktop shortcuts are only supported on Windows".to_string())
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    pub fn get_desktop_path() -> PathBuf {
+        dirs::desktop_dir().unwrap_or_else(|| PathBuf::from("/tmp"))
     }
 }
