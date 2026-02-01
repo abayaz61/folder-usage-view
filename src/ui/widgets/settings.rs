@@ -73,7 +73,7 @@ impl Widget for SettingsWidget<'_> {
         let s = Strings::new(lang);
         let theme = self.app.theme();
         let icons = self.app.icons();
-        let _platform_labels = get_platform_labels();
+        let platform_labels = get_platform_labels();
 
         let block = Block::default()
             .borders(Borders::ALL)
@@ -107,9 +107,9 @@ impl Widget for SettingsWidget<'_> {
         };
         lines.extend(self.render_option(
             0,
-            s.get("settings.context_menu"),
+            platform_labels.context_menu,
             context_value,
-            s.get("settings.context_menu_desc"),
+            platform_labels.context_menu_desc,
             context_enabled,
         ));
 
@@ -147,24 +147,24 @@ impl Widget for SettingsWidget<'_> {
             path_enabled,
         ));
 
-        // Start Menu shortcut option
-        let start_menu_enabled = windows::is_start_menu_shortcut_exists();
-        let start_menu_value = if start_menu_enabled {
+        // Menu shortcut option (Start Menu on Windows, Applications on Linux/macOS)
+        let menu_enabled = windows::is_start_menu_shortcut_exists();
+        let menu_value = if menu_enabled {
             s.get("settings.created")
         } else {
             s.get("settings.not_created")
         };
-        let start_menu_desc = if start_menu_enabled {
-            windows::get_start_menu_path().join("Disk Usage Analyzer.lnk").display().to_string()
+        let menu_desc = if menu_enabled {
+            windows::get_start_menu_path().display().to_string()
         } else {
-            s.get("settings.start_menu_desc").to_string()
+            platform_labels.menu_shortcut_desc.to_string()
         };
         lines.extend(self.render_option(
             3,
-            s.get("settings.start_menu"),
-            start_menu_value,
-            &start_menu_desc,
-            start_menu_enabled,
+            platform_labels.menu_shortcut,
+            menu_value,
+            &menu_desc,
+            menu_enabled,
         ));
 
         // Desktop shortcut option
@@ -175,13 +175,13 @@ impl Widget for SettingsWidget<'_> {
             s.get("settings.not_created")
         };
         let desktop_desc = if desktop_enabled {
-            windows::get_desktop_path().join("Disk Usage Analyzer.lnk").display().to_string()
+            windows::get_desktop_path().display().to_string()
         } else {
-            s.get("settings.desktop_desc").to_string()
+            platform_labels.desktop_shortcut_desc.to_string()
         };
         lines.extend(self.render_option(
             4,
-            s.get("settings.desktop"),
+            platform_labels.desktop_shortcut,
             desktop_value,
             &desktop_desc,
             desktop_enabled,
@@ -237,7 +237,7 @@ impl Widget for SettingsWidget<'_> {
 
         // Delete method option
         let delete_method_value = if self.app.settings.delete_to_trash {
-            s.get("settings.delete_to_trash")
+            platform_labels.trash_name
         } else {
             s.get("settings.delete_permanent")
         };
@@ -263,7 +263,7 @@ impl Widget for SettingsWidget<'_> {
             self.app.settings.show_delete_confirmation,
         ));
 
-        // Run as Admin option
+        // Run as Admin/Root option
         let is_admin = windows::is_running_as_admin();
         let admin_value = if self.app.settings.run_as_admin {
             s.get("settings.enabled")
@@ -277,9 +277,9 @@ impl Widget for SettingsWidget<'_> {
         };
         lines.extend(self.render_option(
             11,
-            s.get("settings.run_as_admin"),
+            platform_labels.admin_label,
             admin_value,
-            &format!("{} - {}", s.get("settings.run_as_admin_desc"), admin_desc),
+            &format!("{} - {}", platform_labels.admin_desc, admin_desc),
             self.app.settings.run_as_admin,
         ));
 

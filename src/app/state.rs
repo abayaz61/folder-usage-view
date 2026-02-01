@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::model::{DriveInfo, FileTree, NodeId, get_all_drives};
+use crate::platform::get_platform_labels;
 use crate::scanner::{ScanMessage, ScanProgress, ScanResult};
 use crate::ui::theme::{Icons, Theme};
 
@@ -572,7 +573,8 @@ impl App {
             let success_count = results.iter().filter(|(_, r)| r.is_ok()).count();
             if success_count > 0 {
                 if self.settings.delete_to_trash {
-                    self.message = Some(format!("Moved to Recycle Bin: {}", name));
+                    let labels = get_platform_labels();
+                    self.message = Some(format!("Moved to {}: {}", labels.trash_name, name));
                 } else {
                     self.message = Some(format!("Deleted: {}", name));
                 }
@@ -801,11 +803,12 @@ impl App {
                 }
             }
             3 => {
-                // Toggle Start Menu shortcut
+                // Toggle Menu shortcut (Start Menu on Windows, Applications on Linux/macOS)
+                let labels = get_platform_labels();
                 if windows::is_start_menu_shortcut_exists() {
                     match windows::remove_start_menu_shortcut() {
                         Ok(()) => {
-                            self.message = Some("Start Menu shortcut removed".to_string());
+                            self.message = Some(format!("{} removed", labels.menu_shortcut));
                         }
                         Err(e) => {
                             self.message = Some(format!("Error: {}", e));
@@ -814,7 +817,7 @@ impl App {
                 } else {
                     match windows::create_start_menu_shortcut() {
                         Ok(()) => {
-                            self.message = Some("Start Menu shortcut created".to_string());
+                            self.message = Some(format!("{} created", labels.menu_shortcut));
                         }
                         Err(e) => {
                             self.message = Some(format!("Error: {}", e));
@@ -824,10 +827,11 @@ impl App {
             }
             4 => {
                 // Toggle Desktop shortcut
+                let labels = get_platform_labels();
                 if windows::is_desktop_shortcut_exists() {
                     match windows::remove_desktop_shortcut() {
                         Ok(()) => {
-                            self.message = Some("Desktop shortcut removed".to_string());
+                            self.message = Some(format!("{} removed", labels.desktop_shortcut));
                         }
                         Err(e) => {
                             self.message = Some(format!("Error: {}", e));
@@ -836,7 +840,7 @@ impl App {
                 } else {
                     match windows::create_desktop_shortcut() {
                         Ok(()) => {
-                            self.message = Some("Desktop shortcut created".to_string());
+                            self.message = Some(format!("{} created", labels.desktop_shortcut));
                         }
                         Err(e) => {
                             self.message = Some(format!("Error: {}", e));
@@ -870,8 +874,9 @@ impl App {
             }
             9 => {
                 // Toggle delete method (trash vs permanent)
+                let labels = get_platform_labels();
                 self.settings.delete_to_trash = !self.settings.delete_to_trash;
-                let mode = if self.settings.delete_to_trash { "Recycle Bin" } else { "Permanent" };
+                let mode = if self.settings.delete_to_trash { labels.trash_name } else { "Permanent" };
                 self.message = Some(format!("Delete method: {}", mode));
             }
             10 => {
@@ -881,12 +886,13 @@ impl App {
                 self.message = Some(format!("Delete confirmation: {}", mode));
             }
             11 => {
-                // Toggle run as admin
+                // Toggle run as admin/root
+                let labels = get_platform_labels();
                 self.settings.run_as_admin = !self.settings.run_as_admin;
                 let mode = if self.settings.run_as_admin { "Enabled" } else { "Disabled" };
-                self.message = Some(format!("Run as Admin: {}", mode));
+                self.message = Some(format!("{}: {}", labels.admin_label, mode));
 
-                // If enabled and not currently admin, we need to restart
+                // If enabled and not currently admin/root, we need to restart
                 if self.settings.run_as_admin && !windows::is_running_as_admin() {
                     // Save first, then the main loop will handle the restart
                     let _ = self.settings.save();
