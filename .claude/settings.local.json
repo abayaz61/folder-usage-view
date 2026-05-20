@@ -32,7 +32,15 @@
       "Bash(cmd /c \"del /f /q \\\\.\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\")",
       "Bash(cmd /c \"del /f /q \"\"\\\\?\\\\E:\\\\AI Projects\\\\folder-usage-view\\\\nul\"\"\")",
       "Bash(git revert:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "WebFetch(domain:ratatui.rs)",
+      "Bash(git remote get-url:*)",
+      "Bash(wsl:*)",
+      "Bash(timeout 3 bash:*)",
+      "Bash(cargo run:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo test:*)",
+      "Bash(./target/release/examples/test_wt_font.exe:*)"
     ]
   }
 }

@@ -5,7 +5,6 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::app::{App, StartupLocation};
-use crate::app::settings::windows;
 use crate::platform::get_platform_labels;
 use crate::util::i18n::Strings;
 
@@ -98,8 +97,10 @@ impl Widget for SettingsWidget<'_> {
             Line::from(""),
         ];
 
+        let cache = &self.app.settings_cache;
+
         // Context Menu option
-        let context_enabled = windows::is_context_menu_registered();
+        let context_enabled = cache.context_menu_registered;
         let context_value = if context_enabled {
             s.get("settings.enabled")
         } else {
@@ -128,14 +129,14 @@ impl Widget for SettingsWidget<'_> {
         ));
 
         // PATH Registration option
-        let path_enabled = windows::is_path_registered();
+        let path_enabled = cache.path_registered;
         let path_value = if path_enabled {
             s.get("settings.registered")
         } else {
             s.get("settings.not_registered")
         };
         let path_desc = if path_enabled {
-            windows::get_install_path().display().to_string()
+            cache.install_path.clone()
         } else {
             s.get("settings.path_reg_desc").to_string()
         };
@@ -148,14 +149,14 @@ impl Widget for SettingsWidget<'_> {
         ));
 
         // Menu shortcut option (Start Menu on Windows, Applications on Linux/macOS)
-        let menu_enabled = windows::is_start_menu_shortcut_exists();
+        let menu_enabled = cache.start_menu_shortcut_exists;
         let menu_value = if menu_enabled {
             s.get("settings.created")
         } else {
             s.get("settings.not_created")
         };
         let menu_desc = if menu_enabled {
-            windows::get_start_menu_path().display().to_string()
+            cache.start_menu_path.clone()
         } else {
             platform_labels.menu_shortcut_desc.to_string()
         };
@@ -168,14 +169,14 @@ impl Widget for SettingsWidget<'_> {
         ));
 
         // Desktop shortcut option
-        let desktop_enabled = windows::is_desktop_shortcut_exists();
+        let desktop_enabled = cache.desktop_shortcut_exists;
         let desktop_value = if desktop_enabled {
             s.get("settings.created")
         } else {
             s.get("settings.not_created")
         };
         let desktop_desc = if desktop_enabled {
-            windows::get_desktop_path().display().to_string()
+            cache.desktop_path.clone()
         } else {
             platform_labels.desktop_shortcut_desc.to_string()
         };
@@ -264,7 +265,7 @@ impl Widget for SettingsWidget<'_> {
         ));
 
         // Run as Admin/Root option
-        let is_admin = windows::is_running_as_admin();
+        let is_admin = cache.running_as_admin;
         let admin_value = if self.app.settings.run_as_admin {
             s.get("settings.enabled")
         } else {
@@ -281,6 +282,26 @@ impl Widget for SettingsWidget<'_> {
             admin_value,
             &format!("{} - {}", platform_labels.admin_desc, admin_desc),
             self.app.settings.run_as_admin,
+        ));
+
+        // Font name option
+        let font_available = !cache.available_fonts.is_empty();
+        lines.extend(self.render_option(
+            12,
+            s.get("settings.font_name"),
+            &self.app.settings.font_name,
+            s.get("settings.font_name_desc"),
+            font_available,
+        ));
+
+        // Font size option
+        let font_size_str = format!("{}pt", self.app.settings.font_size);
+        lines.extend(self.render_option(
+            13,
+            s.get("settings.font_size"),
+            &font_size_str,
+            s.get("settings.font_size_desc"),
+            font_available,
         ));
 
         // Footer
@@ -304,7 +325,21 @@ impl Widget for SettingsWidget<'_> {
             Style::default().fg(Color::Red),
         )));
 
-        let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
+        // Calculate scroll offset to keep selected option visible
+        // Header takes 5 lines, each option takes 3 lines
+        let header_lines: u16 = 5;
+        let selected = self.app.settings_selected_index as u16;
+        let option_top = header_lines + selected * 3;
+        let visible_height = inner.height;
+        let scroll_y = if option_top + 3 > visible_height {
+            option_top.saturating_sub(visible_height / 3)
+        } else {
+            0
+        };
+
+        let paragraph = Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .scroll((scroll_y, 0));
         paragraph.render(inner, buf);
     }
 }

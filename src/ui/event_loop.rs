@@ -135,6 +135,9 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
             KeyCode::Char('o') | KeyCode::Char('O') => app.cycle_sort_mode(),
             KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
+            KeyCode::Char('r') | KeyCode::Char('R') => app.refresh(),
+            KeyCode::Char('+') | KeyCode::Char('=') => app.increase_font_size(),
+            KeyCode::Char('-') | KeyCode::Char('_') => app.decrease_font_size(),
             KeyCode::Char('c') | KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
             _ => {}
         },
@@ -145,6 +148,9 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
             KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
+            KeyCode::Char('r') | KeyCode::Char('R') => app.refresh(),
+            KeyCode::Char('+') | KeyCode::Char('=') => app.increase_font_size(),
+            KeyCode::Char('-') | KeyCode::Char('_') => app.decrease_font_size(),
             // Shift+Up/Down for multi-select
             KeyCode::Up if modifiers.contains(KeyModifiers::SHIFT) => app.move_selection_with_select(-1),
             KeyCode::Down if modifiers.contains(KeyModifiers::SHIFT) => app.move_selection_with_select(1),
@@ -186,7 +192,8 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             _ => app.close_about(), // Any key closes about
         },
         AppMode::Settings => match key {
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Char('s') | KeyCode::Char('S') => app.close_settings(),
+            KeyCode::Esc => app.cancel_settings(),
+            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Char('s') | KeyCode::Char('S') => app.close_settings(),
             KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_settings_selection(-1),
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_settings_selection(1),
             KeyCode::Enter | KeyCode::Char(' ') => app.toggle_current_setting(),
@@ -299,20 +306,20 @@ fn handle_mouse_event(
                 AppMode::Settings => {
                     // Check if click is inside settings area
                     let settings_width = (terminal_width * 65 / 100).min(terminal_width - 4);
-                    let settings_height = (terminal_height * 70 / 100).min(terminal_height - 4);
+                    let settings_height = (terminal_height * 90 / 100).min(terminal_height - 4);
                     let settings_x = (terminal_width - settings_width) / 2;
                     let settings_y = (terminal_height - settings_height) / 2;
 
                     if col < settings_x || col >= settings_x + settings_width ||
                        row < settings_y || row >= settings_y + settings_height {
-                        // Click outside - close settings
-                        app.close_settings();
+                        // Click outside - cancel settings (revert font)
+                        app.cancel_settings();
                         return;
                     }
                     // Inside settings - check for option clicks
                     let relative_row = row.saturating_sub(settings_y + 5); // Skip header
                     let option_index = (relative_row / 3) as usize; // Each option takes 3 rows
-                    if option_index < 6 {
+                    if option_index < 14 {
                         app.settings_selected_index = option_index;
                         if is_double_click {
                             app.toggle_current_setting();
@@ -913,7 +920,7 @@ fn render_about_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
 fn render_settings_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     let settings = SettingsWidget::new(app);
-    let settings_area = centered_rect(65, 70, area);
+    let settings_area = centered_rect(65, 90, area);
     frame.render_widget(Clear, settings_area);
     frame.render_widget(settings, settings_area);
 }

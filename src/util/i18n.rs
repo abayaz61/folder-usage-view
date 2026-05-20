@@ -172,6 +172,10 @@ impl Strings {
         m.insert("settings.toggle", "Toggle   ");
         m.insert("settings.close", "Close");
         m.insert("settings.admin_note", "Note: Some options require Administrator privileges");
+        m.insert("settings.font_name", "Console Font");
+        m.insert("settings.font_name_desc", "Select monospace font for console display");
+        m.insert("settings.font_size", "Font Size");
+        m.insert("settings.font_size_desc", "Console font size in points");
 
         // Startup locations
         m.insert("startup.last_location", "Last Location");
@@ -365,6 +369,10 @@ impl Strings {
         m.insert("settings.toggle", "Değiştir   ");
         m.insert("settings.close", "Kapat");
         m.insert("settings.admin_note", "Not: Bazı seçenekler Yönetici yetkisi gerektirir");
+        m.insert("settings.font_name", "Konsol Fontu");
+        m.insert("settings.font_name_desc", "Konsol görüntüleme için monospace font seçin");
+        m.insert("settings.font_size", "Font Boyutu");
+        m.insert("settings.font_size_desc", "Konsol font boyutu (punto)");
 
         // Startup locations
         m.insert("startup.last_location", "Son Konum");

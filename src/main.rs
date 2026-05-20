@@ -130,6 +130,9 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Apply saved font settings before terminal init
+    let _ = settings_windows::set_console_font(&settings.font_name, settings.font_size);
+
     // Initialize terminal with ratatui (includes panic hook automatically)
     let mut terminal = ratatui::init();
 

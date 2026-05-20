@@ -42,10 +42,22 @@ pub struct Settings {
     pub show_delete_confirmation: bool,
     #[serde(default)]
     pub run_as_admin: bool,
+    #[serde(default = "default_font_name")]
+    pub font_name: String,
+    #[serde(default = "default_font_size")]
+    pub font_size: u16,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_font_name() -> String {
+    "Consolas".to_string()
+}
+
+fn default_font_size() -> u16 {
+    16
 }
 
 impl Default for Settings {
@@ -62,6 +74,8 @@ impl Default for Settings {
             delete_to_trash: false,
             show_delete_confirmation: true,
             run_as_admin: false,
+            font_name: default_font_name(),
+            font_size: default_font_size(),
         }
     }
 }
@@ -121,6 +135,7 @@ pub mod windows {
         is_path_registered, is_running_as_admin, is_start_menu_shortcut_exists, register_context_menu,
         register_to_path, relaunch_as_admin, relaunch_as_admin_with_flag, remove_desktop_shortcut,
         remove_start_menu_shortcut, unregister_context_menu, unregister_from_path,
+        get_console_font, set_console_font, get_available_fonts,
     };
 
     #[cfg(target_os = "linux")]
@@ -133,6 +148,7 @@ pub mod windows {
         register_to_path, relaunch_as_root as relaunch_as_admin,
         remove_desktop_shortcut, remove_menu_entry as remove_start_menu_shortcut,
         unregister_context_menu, unregister_from_path,
+        get_console_font, set_console_font, get_available_fonts,
     };
 
     #[cfg(target_os = "linux")]
@@ -152,6 +168,7 @@ pub mod windows {
         relaunch_as_admin, remove_desktop_alias as remove_desktop_shortcut,
         remove_applications_entry as remove_start_menu_shortcut, unregister_context_menu,
         unregister_from_path,
+        get_console_font, set_console_font, get_available_fonts,
     };
 
     #[cfg(target_os = "macos")]
@@ -226,6 +243,18 @@ pub mod windows {
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn get_start_menu_path() -> PathBuf {
         PathBuf::from("/usr/share/applications")
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    pub fn get_console_font() -> (String, u16) {
+        ("Default".to_string(), 16)
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    pub fn set_console_font(_name: &str, _size: u16) -> Result<(), String> {
+        Err("Font settings are not supported on this platform".to_string())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    pub fn get_available_fonts() -> Vec<String> {
+        Vec::new()
     }
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn get_desktop_path() -> PathBuf {

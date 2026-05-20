@@ -420,3 +420,309 @@ pub fn remove_desktop_shortcut() -> Result<(), String> {
     }
     Ok(())
 }
+
+/// Get the console output handle via CONOUT$ (works in alternate screen mode).
+/// Opened once and cached to avoid handle leaks.
+fn get_console_handle() -> Result<windows::Win32::Foundation::HANDLE, String> {
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::OnceLock;
+
+    static HANDLE: OnceLock<isize> = OnceLock::new();
+
+    let raw = HANDLE.get_or_init(|| {
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open("CONOUT$")
+            .expect("Failed to open CONOUT$");
+        let raw = file.as_raw_handle() as isize;
+        std::mem::forget(file);
+        raw
+    });
+
+    Ok(windows::Win32::Foundation::HANDLE(*raw as _))
+}
+
+/// Check if we're running inside Windows Terminal (vs legacy conhost.exe)
+fn is_windows_terminal() -> bool {
+    std::env::var("WT_SESSION").is_ok()
+}
+
+/// Get the path to Windows Terminal's settings.json
+fn get_wt_settings_path() -> Option<PathBuf> {
+    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+    let base = PathBuf::from(local_app_data).join("Packages");
+
+    // Check stable WT first, then preview
+    let candidates = [
+        "Microsoft.WindowsTerminal_8wekyb3d8bbwe",
+        "Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe",
+    ];
+
+    for package in &candidates {
+        let path = base
+            .join(package)
+            .join("LocalState")
+            .join("settings.json");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+/// Strip single-line comments (//) and trailing commas from JSONC content.
+/// Windows Terminal settings.json uses JSONC format.
+fn strip_jsonc(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut in_string = false;
+    let mut chars = input.chars().peekable();
+
+    // Pass 1: strip // comments
+    while let Some(ch) = chars.next() {
+        if in_string {
+            out.push(ch);
+            if ch == '\\' {
+                if let Some(next) = chars.next() {
+                    out.push(next);
+                }
+            } else if ch == '"' {
+                in_string = false;
+            }
+        } else if ch == '"' {
+            in_string = true;
+            out.push(ch);
+        } else if ch == '/' && chars.peek() == Some(&'/') {
+            for c in chars.by_ref() {
+                if c == '\n' {
+                    out.push('\n');
+                    break;
+                }
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+
+    // Pass 2: remove trailing commas before } or ]
+    // Use regex-like approach: find ",\s*[}\]]" and remove the comma
+    let bytes = out.as_bytes();
+    let mut result = String::with_capacity(out.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b',' {
+            // Check if only whitespace follows before } or ]
+            let mut j = i + 1;
+            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'\n' || bytes[j] == b'\r') {
+                j += 1;
+            }
+            if j < bytes.len() && (bytes[j] == b'}' || bytes[j] == b']') {
+                // Skip the comma
+                i += 1;
+                continue;
+            }
+        }
+        result.push(bytes[i] as char);
+        i += 1;
+    }
+    result
+}
+
+/// Get the active WT profile GUID from environment.
+fn get_wt_profile_id() -> Option<String> {
+    std::env::var("WT_PROFILE_ID").ok()
+}
+
+/// Find the active profile object in WT settings and return a mutable reference to its font object.
+/// Creates the font object if it doesn't exist.
+fn get_wt_active_profile_font_mut(json: &mut serde_json::Value) -> Result<&mut serde_json::Map<String, serde_json::Value>, String> {
+    let profile_id = get_wt_profile_id()
+        .ok_or("WT_PROFILE_ID not set")?;
+
+    let list = json
+        .pointer_mut("/profiles/list")
+        .and_then(|v| v.as_array_mut())
+        .ok_or("profiles.list not found")?;
+
+    let profile = list.iter_mut()
+        .find(|p| p.get("guid").and_then(|g| g.as_str()) == Some(&profile_id))
+        .ok_or(format!("Profile {} not found in WT settings", profile_id))?;
+
+    let profile_obj = profile
+        .as_object_mut()
+        .ok_or("profile is not an object")?;
+
+    let font = profile_obj
+        .entry("font")
+        .or_insert_with(|| serde_json::json!({}));
+
+    font.as_object_mut()
+        .ok_or_else(|| "font is not an object".to_string())
+}
+
+/// Read WT settings.json, parse it, return (json, path).
+fn read_wt_settings() -> Result<(serde_json::Value, PathBuf), String> {
+    let path = get_wt_settings_path()
+        .ok_or("Could not find Windows Terminal settings.json")?;
+
+    let content = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read WT settings: {}", e))?;
+
+    let clean = strip_jsonc(&content);
+    let json: serde_json::Value = serde_json::from_str(&clean)
+        .map_err(|e| format!("Failed to parse WT settings: {}", e))?;
+
+    Ok((json, path))
+}
+
+/// Write WT settings.json back.
+fn write_wt_settings(json: &serde_json::Value, path: &PathBuf) -> Result<(), String> {
+    let output = serde_json::to_string_pretty(json)
+        .map_err(|e| format!("Failed to serialize WT settings: {}", e))?;
+
+    fs::write(path, output)
+        .map_err(|e| format!("Failed to write WT settings: {}", e))
+}
+
+/// Read font info from the active profile in WT settings.json.
+fn get_wt_font() -> (String, u16) {
+    let (json, _path) = match read_wt_settings() {
+        Ok(v) => v,
+        Err(_) => return ("Cascadia Mono".to_string(), 12),
+    };
+
+    let profile_id = match get_wt_profile_id() {
+        Some(id) => id,
+        None => return ("Cascadia Mono".to_string(), 12),
+    };
+
+    // Find active profile's font
+    let font = json
+        .pointer("/profiles/list")
+        .and_then(|list| list.as_array())
+        .and_then(|list| list.iter().find(|p| p.get("guid").and_then(|g| g.as_str()) == Some(&profile_id)))
+        .and_then(|p| p.get("font"));
+
+    if let Some(font) = font {
+        let face = font["face"].as_str().unwrap_or("Cascadia Mono").to_string();
+        let size = font["size"].as_u64().unwrap_or(12) as u16;
+        return (face, size);
+    }
+
+    // Fallback: check profiles.defaults.font
+    let defaults_font = &json["profiles"]["defaults"]["font"];
+    let face = defaults_font["face"].as_str().unwrap_or("Cascadia Mono").to_string();
+    let size = defaults_font["size"].as_u64().unwrap_or(12) as u16;
+    (face, size)
+}
+
+/// Set font on the active profile in WT settings.json (both face and size in one write).
+fn set_wt_font(name: &str, size: u16) -> Result<(), String> {
+    let (mut json, path) = read_wt_settings()?;
+
+    let font_obj = get_wt_active_profile_font_mut(&mut json)?;
+    font_obj.insert("face".to_string(), serde_json::json!(name));
+    font_obj.insert("size".to_string(), serde_json::json!(size));
+
+    write_wt_settings(&json, &path)
+}
+
+/// Get the current console font name and size.
+/// Routes to Windows Terminal settings or legacy console API depending on the host.
+pub fn get_console_font() -> (String, u16) {
+    if is_windows_terminal() {
+        return get_wt_font();
+    }
+
+    use windows::Win32::System::Console::*;
+
+    let handle = match get_console_handle() {
+        Ok(h) => h,
+        Err(_) => return ("Consolas".to_string(), 16),
+    };
+
+    unsafe {
+        let mut info = CONSOLE_FONT_INFOEX {
+            cbSize: std::mem::size_of::<CONSOLE_FONT_INFOEX>() as u32,
+            ..Default::default()
+        };
+        if GetCurrentConsoleFontEx(handle, false, &mut info).is_ok() {
+            let name = String::from_utf16_lossy(
+                &info.FaceName[..info.FaceName.iter().position(|&c| c == 0).unwrap_or(info.FaceName.len())]
+            );
+            let size = info.dwFontSize.Y as u16;
+            (name, size)
+        } else {
+            ("Consolas".to_string(), 16)
+        }
+    }
+}
+
+/// Write a debug line to a log file next to the executable.
+fn debug_log(msg: &str) {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("dua_font_debug.log");
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(f, "[{}] {}", chrono::Local::now().format("%H:%M:%S%.3f"), msg);
+    }
+}
+
+/// Set the console font name and size.
+/// Routes to Windows Terminal settings or legacy console API depending on the host.
+pub fn set_console_font(name: &str, size: u16) -> Result<(), String> {
+    debug_log(&format!("set_console_font called: name={}, size={}", name, size));
+    debug_log(&format!("WT_SESSION={:?}", std::env::var("WT_SESSION")));
+    debug_log(&format!("is_windows_terminal={}", is_windows_terminal()));
+
+    if is_windows_terminal() {
+        debug_log("Taking WT path (active profile)");
+        let r = set_wt_font(name, size);
+        debug_log(&format!("set_wt_font result: {:?}", r));
+        return r;
+    }
+
+    debug_log("Taking conhost path");
+
+    use windows::Win32::System::Console::*;
+
+    let handle = get_console_handle()?;
+
+    unsafe {
+        let mut info = CONSOLE_FONT_INFOEX {
+            cbSize: std::mem::size_of::<CONSOLE_FONT_INFOEX>() as u32,
+            ..Default::default()
+        };
+
+        // Get current font info as base
+        let _ = GetCurrentConsoleFontEx(handle, false, &mut info);
+
+        // Set font size
+        info.dwFontSize.X = 0;
+        info.dwFontSize.Y = size as i16;
+        info.FontWeight = 400; // FW_NORMAL
+
+        // Set font name
+        let name_wide: Vec<u16> = name.encode_utf16().collect();
+        info.FaceName = [0u16; 32];
+        let copy_len = name_wide.len().min(31);
+        info.FaceName[..copy_len].copy_from_slice(&name_wide[..copy_len]);
+
+        SetCurrentConsoleFontEx(handle, false, &info)
+            .map_err(|e| format!("Failed to set console font: {}", e))
+    }
+}
+
+/// Get a list of available monospace console fonts
+pub fn get_available_fonts() -> Vec<String> {
+    vec![
+        "Consolas".to_string(),
+        "Lucida Console".to_string(),
+        "Courier New".to_string(),
+        "Cascadia Mono".to_string(),
+        "Cascadia Code".to_string(),
+        "Terminal".to_string(),
+        "Fira Code".to_string(),
+        "JetBrains Mono".to_string(),
+        "Source Code Pro".to_string(),
+    ]
+}

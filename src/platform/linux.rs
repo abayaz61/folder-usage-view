@@ -391,3 +391,15 @@ pub fn remove_desktop_shortcut() -> Result<(), String> {
 
     Ok(())
 }
+
+pub fn get_console_font() -> (String, u16) {
+    ("Default".to_string(), 16)
+}
+
+pub fn set_console_font(_name: &str, _size: u16) -> Result<(), String> {
+    Err("Font settings are controlled by the terminal emulator".to_string())
+}
+
+pub fn get_available_fonts() -> Vec<String> {
+    Vec::new()
+}

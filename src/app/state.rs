@@ -11,6 +11,43 @@ use crate::ui::theme::{Icons, Theme};
 use super::config::Config;
 use super::settings::Settings;
 
+/// Cached results of expensive platform checks (registry queries, process spawns, file checks).
+/// Refreshed only when the settings page opens or a setting is toggled.
+#[derive(Debug, Clone, Default)]
+pub struct SettingsCache {
+    pub context_menu_registered: bool,
+    pub path_registered: bool,
+    pub start_menu_shortcut_exists: bool,
+    pub desktop_shortcut_exists: bool,
+    pub running_as_admin: bool,
+    pub install_path: String,
+    pub start_menu_path: String,
+    pub desktop_path: String,
+    pub current_font_name: String,
+    pub current_font_size: u16,
+    pub available_fonts: Vec<String>,
+}
+
+impl SettingsCache {
+    pub fn refresh() -> Self {
+        use super::settings::windows;
+        let (font_name, font_size) = windows::get_console_font();
+        Self {
+            context_menu_registered: windows::is_context_menu_registered(),
+            path_registered: windows::is_path_registered(),
+            start_menu_shortcut_exists: windows::is_start_menu_shortcut_exists(),
+            desktop_shortcut_exists: windows::is_desktop_shortcut_exists(),
+            running_as_admin: windows::is_running_as_admin(),
+            install_path: windows::get_install_path().display().to_string(),
+            start_menu_path: windows::get_start_menu_path().display().to_string(),
+            desktop_path: windows::get_desktop_path().display().to_string(),
+            current_font_name: font_name,
+            current_font_size: font_size,
+            available_fonts: windows::get_available_fonts(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
     Scanning,
@@ -86,12 +123,16 @@ pub struct App {
     // Settings
     pub settings: Settings,
     pub settings_selected_index: usize,
+    pub settings_cache: SettingsCache,
     // Error handling
     pub error_message: Option<String>,
     // Sorting
     pub sort_mode: SortMode,
     // Admin restart flag
     pub pending_admin_restart: bool,
+    // Font preview state (for revert on cancel)
+    pub original_font_name: String,
+    pub original_font_size: u16,
 }
 
 impl App {
@@ -119,9 +160,12 @@ impl App {
             in_computer_view: false,
             settings,
             settings_selected_index: 0,
+            settings_cache: SettingsCache::default(),
             error_message: None,
             sort_mode: SortMode::default(),
             pending_admin_restart: false,
+            original_font_name: String::new(),
+            original_font_size: 0,
         }
     }
 
@@ -395,6 +439,15 @@ impl App {
     pub fn close_computer_view(&mut self) {
         self.in_computer_view = false;
         self.mode = AppMode::Browsing;
+    }
+
+    pub fn refresh(&mut self) {
+        let path = if let Some(current) = self.current_node {
+            self.tree.get_path(current).unwrap_or_else(|| self.config.target_path.clone())
+        } else {
+            self.config.target_path.clone()
+        };
+        self.pending_rescan = Some(path);
     }
 
     pub fn take_pending_rescan(&mut self) -> Option<PathBuf> {
@@ -728,15 +781,36 @@ impl App {
     pub fn open_settings(&mut self) {
         self.previous_mode = self.get_base_mode();
         self.settings_selected_index = 0;
+        self.settings_cache = SettingsCache::refresh();
+        // Store original font for revert-on-cancel
+        self.original_font_name = self.settings.font_name.clone();
+        self.original_font_size = self.settings.font_size;
         self.mode = AppMode::Settings;
     }
 
+    /// Close settings and save all changes (including font)
     pub fn close_settings(&mut self) {
+        let _ = self.settings.save();
+        self.mode = self.previous_mode;
+    }
+
+    /// Cancel settings: revert font to original and close
+    pub fn cancel_settings(&mut self) {
+        // Revert font if it was changed
+        if self.settings.font_name != self.original_font_name
+            || self.settings.font_size != self.original_font_size
+        {
+            use super::settings::windows;
+            let _ = windows::set_console_font(&self.original_font_name, self.original_font_size);
+            self.settings.font_name = self.original_font_name.clone();
+            self.settings.font_size = self.original_font_size;
+            let _ = self.settings.save();
+        }
         self.mode = self.previous_mode;
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 12; // Number of settings options
+        const SETTINGS_COUNT: usize = 14; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -899,10 +973,87 @@ impl App {
                     self.pending_admin_restart = true;
                 }
             }
+            12 => {
+                // Cycle font name
+                let fonts = windows::get_available_fonts();
+                if !fonts.is_empty() {
+                    let current_idx = fonts.iter()
+                        .position(|f| f == &self.settings.font_name)
+                        .unwrap_or(0);
+                    let next_idx = (current_idx + 1) % fonts.len();
+                    self.settings.font_name = fonts[next_idx].clone();
+                    match windows::set_console_font(&self.settings.font_name, self.settings.font_size) {
+                        Ok(()) => self.message = Some(format!("Font: {}", self.settings.font_name)),
+                        Err(e) => self.message = Some(format!("Error: {}", e)),
+                    }
+                }
+            }
+            13 => {
+                // Cycle font size
+                const SIZES: &[u16] = &[8, 10, 12, 14, 16, 18, 20, 24];
+                let current_idx = SIZES.iter()
+                    .position(|&s| s == self.settings.font_size)
+                    .unwrap_or(4); // default to 16
+                let next_idx = (current_idx + 1) % SIZES.len();
+                self.settings.font_size = SIZES[next_idx];
+                match windows::set_console_font(&self.settings.font_name, self.settings.font_size) {
+                    Ok(()) => self.message = Some(format!("Font size: {}pt", self.settings.font_size)),
+                    Err(e) => self.message = Some(format!("Error: {}", e)),
+                }
+            }
             _ => {}
         }
-        // Save settings after change
-        let _ = self.settings.save();
+        // Save settings after change (except font — font saves on close_settings)
+        if self.settings_selected_index != 12 && self.settings_selected_index != 13 {
+            let _ = self.settings.save();
+        }
+        // Update only the changed cache fields instead of full refresh
+        // (full refresh spawns cmd.exe for is_running_as_admin and freezes UI)
+        match self.settings_selected_index {
+            0 => self.settings_cache.context_menu_registered = windows::is_context_menu_registered(),
+            2 => self.settings_cache.path_registered = windows::is_path_registered(),
+            3 => {
+                self.settings_cache.start_menu_shortcut_exists = windows::is_start_menu_shortcut_exists();
+                self.settings_cache.start_menu_path = windows::get_start_menu_path().display().to_string();
+            }
+            4 => {
+                self.settings_cache.desktop_shortcut_exists = windows::is_desktop_shortcut_exists();
+                self.settings_cache.desktop_path = windows::get_desktop_path().display().to_string();
+            }
+            _ => {} // Font, language, palette etc. read directly from self.settings
+        }
+    }
+
+    pub fn increase_font_size(&mut self) {
+        use super::settings::windows;
+        const SIZES: &[u16] = &[8, 10, 12, 14, 16, 18, 20, 24];
+        let current_idx = SIZES.iter()
+            .position(|&s| s == self.settings.font_size)
+            .unwrap_or(4);
+        if current_idx < SIZES.len() - 1 {
+            self.settings.font_size = SIZES[current_idx + 1];
+            match windows::set_console_font(&self.settings.font_name, self.settings.font_size) {
+                Ok(()) => self.message = Some(format!("Font: {}pt", self.settings.font_size)),
+                Err(e) => self.message = Some(format!("Error: {}", e)),
+            }
+            let _ = self.settings.save();
+        }
+    }
+
+    pub fn decrease_font_size(&mut self) {
+        use super::settings::windows;
+        const SIZES: &[u16] = &[8, 10, 12, 14, 16, 18, 20, 24];
+        let current_idx = SIZES.iter()
+            .position(|&s| s == self.settings.font_size)
+            .unwrap_or(4);
+        if current_idx > 0 {
+            self.settings.font_size = SIZES[current_idx - 1];
+            match windows::set_console_font(&self.settings.font_name, self.settings.font_size) {
+                Ok(()) => self.message = Some(format!("Font: {}pt", self.settings.font_size)),
+                Err(e) => self.message = Some(format!("Error: {}", e)),
+            }
+            let _ = self.settings.save();
+        }
     }
 
     fn get_base_mode(&self) -> AppMode {
