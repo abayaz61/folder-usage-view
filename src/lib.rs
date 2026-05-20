@@ -2,6 +2,7 @@ pub mod actions;
 pub mod app;
 pub mod model;
 pub mod platform;
+pub mod report;
 pub mod scanner;
 pub mod treemap;
 pub mod ui;

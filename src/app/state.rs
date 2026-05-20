@@ -5,7 +5,11 @@ use std::sync::Arc;
 
 use crate::model::{DriveInfo, FileTree, NodeId, get_all_drives};
 use crate::platform::get_platform_labels;
-use crate::scanner::{ScanMessage, ScanProgress, ScanResult};
+use crate::report::{
+    build_duplicate_files_report, build_large_file_report, write_duplicate_files_report,
+    write_large_file_report, write_report, ExportRequest, ReportFormat, ScanReport,
+};
+use crate::scanner::{find_duplicate_files, ScanMessage, ScanProgress, ScanResult};
 use crate::ui::theme::{Icons, Theme};
 
 use super::config::Config;
@@ -54,6 +58,7 @@ pub enum AppMode {
     Browsing,
     ComputerView,  // Root view showing all drives
     Help,
+    Reports,
     About,
     Settings,
     DeleteConfirm,
@@ -124,6 +129,7 @@ pub struct App {
     pub settings: Settings,
     pub settings_selected_index: usize,
     pub settings_cache: SettingsCache,
+    pub reports_selected_index: usize,
     // Error handling
     pub error_message: Option<String>,
     // Sorting
@@ -161,6 +167,7 @@ impl App {
             settings,
             settings_selected_index: 0,
             settings_cache: SettingsCache::default(),
+            reports_selected_index: 0,
             error_message: None,
             sort_mode: SortMode::default(),
             pending_admin_restart: false,
@@ -201,7 +208,9 @@ impl App {
         self.current_node = Some(root_id);
 
         // Immediately populate root's children for faster UI response
-        self.tree.populate_children_from_fs(root_id);
+        let ignore_matcher = self.config.ignore_matcher();
+        self.tree
+            .populate_children_from_fs_with_filter(root_id, &ignore_matcher);
 
         tx
     }
@@ -348,7 +357,9 @@ impl App {
 
                 // Immediately populate children if not already done (for faster UI response)
                 if self.is_scanning() {
-                    self.tree.populate_children_from_fs(child_id);
+                    let ignore_matcher = self.config.ignore_matcher();
+                    self.tree
+                        .populate_children_from_fs_with_filter(child_id, &ignore_matcher);
                 }
             } else if open_files {
                 // File - open it with default application (only if open_files is true)
@@ -765,6 +776,87 @@ impl App {
 
     pub fn clear_message(&mut self) {
         self.message = None;
+    }
+
+    pub fn open_reports_popup(&mut self) {
+        self.previous_mode = self.get_base_mode();
+        self.reports_selected_index = 0;
+        self.mode = AppMode::Reports;
+    }
+
+    pub fn close_reports_popup(&mut self) {
+        self.mode = self.previous_mode;
+    }
+
+    pub fn move_reports_selection(&mut self, delta: i32) {
+        const REPORT_COUNT: usize = 3;
+        self.reports_selected_index =
+            (self.reports_selected_index as i32 + delta).rem_euclid(REPORT_COUNT as i32) as usize;
+    }
+
+    pub fn execute_selected_report_action(&mut self) -> anyhow::Result<PathBuf> {
+        let output = match self.reports_selected_index {
+            0 => self.export_snapshot_report()?,
+            1 => self.export_cleanup_report(100)?,
+            2 => self.export_duplicate_report(1)?,
+            _ => unreachable!("report index out of bounds"),
+        };
+        self.mode = self.previous_mode;
+        Ok(output)
+    }
+
+    pub fn export_snapshot_report(&mut self) -> anyhow::Result<PathBuf> {
+        let scan_report = self.require_scan_report()?;
+        let output_path = self.reports_dir().join("snapshot.json");
+        let request = ExportRequest {
+            output_path: output_path.clone(),
+            format: ReportFormat::Json,
+        };
+        write_report(&request, &scan_report)?;
+        self.message = Some(format!("snapshot report saved: {}", output_path.display()));
+        Ok(output_path)
+    }
+
+    pub fn export_cleanup_report(&mut self, threshold_mb: u64) -> anyhow::Result<PathBuf> {
+        let scan_report = self.require_scan_report()?;
+        let output_path = self.reports_dir().join("cleanup.md");
+        let threshold_bytes = threshold_mb.saturating_mul(1024 * 1024);
+        let cleanup_report = build_large_file_report(&scan_report, threshold_bytes);
+        write_large_file_report(&output_path, &cleanup_report)?;
+        self.message = Some(format!("cleanup report saved: {}", output_path.display()));
+        Ok(output_path)
+    }
+
+    pub fn export_duplicate_report(&mut self, min_size_kb: u64) -> anyhow::Result<PathBuf> {
+        self.require_scan_report()?;
+        let output_path = self.reports_dir().join("duplicates.md");
+        let min_size_bytes = min_size_kb.saturating_mul(1024);
+        let duplicates = find_duplicate_files(
+            &self.config.target_path,
+            &self.config.ignore_matcher(),
+            min_size_bytes,
+        )?;
+        let report =
+            build_duplicate_files_report(&self.config.target_path.display().to_string(), duplicates);
+        write_duplicate_files_report(&output_path, &report)?;
+        self.message = Some(format!("duplicate report saved: {}", output_path.display()));
+        Ok(output_path)
+    }
+
+    fn require_scan_report(&self) -> anyhow::Result<ScanReport> {
+        let scan_result = self
+            .scan_result
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("scan result is not available yet"))?;
+        Ok(ScanReport::from_scan(
+            &self.config.target_path,
+            &self.tree,
+            scan_result,
+        ))
+    }
+
+    fn reports_dir(&self) -> PathBuf {
+        self.config.target_path.join(".dua-reports")
     }
 
     // About methods

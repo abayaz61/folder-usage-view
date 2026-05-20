@@ -6,10 +6,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use super::entry::{ScanMessage, ScanProgress, ScanResult, ScannedEntry};
+use super::ignore::IgnoreMatcher;
 
 pub struct ParallelScanner {
     follow_symlinks: bool,
     skip_hidden: bool,
+    ignore_matcher: IgnoreMatcher,
 }
 
 impl ParallelScanner {
@@ -17,6 +19,7 @@ impl ParallelScanner {
         Self {
             follow_symlinks: false,
             skip_hidden: false,
+            ignore_matcher: IgnoreMatcher::default(),
         }
     }
 
@@ -27,6 +30,11 @@ impl ParallelScanner {
 
     pub fn skip_hidden(mut self, skip: bool) -> Self {
         self.skip_hidden = skip;
+        self
+    }
+
+    pub fn with_ignore_matcher(mut self, ignore_matcher: IgnoreMatcher) -> Self {
+        self.ignore_matcher = ignore_matcher;
         self
     }
 
@@ -60,6 +68,9 @@ impl ParallelScanner {
             match entry {
                 Ok(entry) => {
                     let path = entry.path();
+                    if self.ignore_matcher.matches(&path) {
+                        continue;
+                    }
                     let is_dir = entry.file_type().is_dir();
 
                     // Get file size

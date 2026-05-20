@@ -5,11 +5,13 @@ use std::path::{Path, PathBuf};
 use super::node::{FileCategory, NodeId, TreeNode};
 use super::statistics::TreeStatistics;
 use crate::app::SortMode;
+use crate::scanner::IgnoreMatcher;
 
 pub struct FileTree {
     arena: SlotMap<NodeId, TreeNode>,
     root: Option<NodeId>,
     path_index: HashMap<PathBuf, NodeId>,
+    node_paths: HashMap<NodeId, PathBuf>,
     pub statistics: TreeStatistics,
 }
 
@@ -19,6 +21,7 @@ impl FileTree {
             arena: SlotMap::with_key(),
             root: None,
             path_index: HashMap::new(),
+            node_paths: HashMap::new(),
             statistics: TreeStatistics::new(),
         }
     }
@@ -32,7 +35,9 @@ impl FileTree {
         let node = TreeNode::new_directory(name, None, 0);
         let id = self.arena.insert(node);
         self.root = Some(id);
-        self.path_index.insert(path.to_path_buf(), id);
+        let root_path = path.to_path_buf();
+        self.path_index.insert(root_path.clone(), id);
+        self.node_paths.insert(id, root_path);
         self.statistics.add_directory();
         id
     }
@@ -105,7 +110,9 @@ impl FileTree {
             let node = TreeNode::new_file(name.clone(), size, Some(parent_id), depth, category);
 
             let id = self.arena.insert(node);
-            self.path_index.insert(path.to_path_buf(), id);
+            let entry_path = path.to_path_buf();
+            self.path_index.insert(entry_path.clone(), id);
+            self.node_paths.insert(id, entry_path);
 
             // Add to parent
             if let Some(parent) = self.arena.get_mut(parent_id) {
@@ -122,7 +129,9 @@ impl FileTree {
         };
 
         let id = self.arena.insert(node);
-        self.path_index.insert(path.to_path_buf(), id);
+        let entry_path = path.to_path_buf();
+        self.path_index.insert(entry_path.clone(), id);
+        self.node_paths.insert(id, entry_path);
 
         // Add to parent
         if let Some(parent) = self.arena.get_mut(parent_id) {
@@ -234,10 +243,7 @@ impl FileTree {
     }
 
     pub fn get_path(&self, id: NodeId) -> Option<PathBuf> {
-        self.path_index
-            .iter()
-            .find(|(_, &node_id)| node_id == id)
-            .map(|(path, _)| path.clone())
+        self.node_paths.get(&id).cloned()
     }
 
     pub fn remove(&mut self, id: NodeId) -> bool {
@@ -249,8 +255,10 @@ impl FileTree {
                 }
             }
 
-            // Remove from path index
-            self.path_index.retain(|_, &mut node_id| node_id != id);
+            // Remove from both path indexes before recursing into children
+            if let Some(path) = self.node_paths.remove(&id) {
+                self.path_index.remove(&path);
+            }
 
             // Recursively remove children
             for child_id in node.children.iter() {
@@ -285,6 +293,15 @@ impl FileTree {
     /// Populate a directory's children by reading the filesystem directly
     /// This is used when navigating into a directory during scanning
     pub fn populate_children_from_fs(&mut self, id: NodeId) -> bool {
+        self.populate_children_from_fs_with_filter(id, &IgnoreMatcher::default())
+    }
+
+    /// Populate a directory's children by reading the filesystem directly while respecting ignore rules
+    pub fn populate_children_from_fs_with_filter(
+        &mut self,
+        id: NodeId,
+        ignore_matcher: &IgnoreMatcher,
+    ) -> bool {
         // Get the path for this node
         let path = match self.get_path(id) {
             Some(p) => p,
@@ -310,6 +327,9 @@ impl FileTree {
 
         for entry in entries.filter_map(|e| e.ok()) {
             let entry_path = entry.path();
+            if ignore_matcher.matches(&entry_path) {
+                continue;
+            }
             let name = entry_path
                 .file_name()
                 .map(|s| s.to_string_lossy().to_string())
@@ -337,7 +357,8 @@ impl FileTree {
             };
 
             let child_id = self.arena.insert(node);
-            self.path_index.insert(entry_path, child_id);
+            self.path_index.insert(entry_path.clone(), child_id);
+            self.node_paths.insert(child_id, entry_path);
 
             // Add to parent
             if let Some(parent) = self.arena.get_mut(id) {

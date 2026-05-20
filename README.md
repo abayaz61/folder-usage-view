@@ -32,6 +32,7 @@
 - **Platform Integration** - Context menus, shortcuts, and system PATH registration
 - **Multi-language Support** - English and Turkish
 - **10 Color Themes** - Including high contrast themes for RDP
+- **Export Reports** - Save scan summaries as JSON, CSV, or Markdown
 - **Portable** - Single executable, no installation required
 
 ## Screenshots
@@ -122,6 +123,24 @@ dua --allow-delete
 
 # Show hidden files
 dua --show-hidden
+
+# Export a JSON report
+dua --path . --export report.json --export-format json
+
+# Ignore build outputs and dependencies
+dua --path . --ignore-preset build --ignore-preset dependencies
+
+# Ignore custom folders
+dua --path . --ignore node_modules --ignore dist/assets
+
+# Save a snapshot and compare it with a previous one
+dua --path . --export current.json --export-format json --compare-with previous.json --compare-output compare.md
+
+# Create a large file cleanup report
+dua --path . --large-files-output cleanup.md --large-file-threshold-mb 250
+
+# Create a duplicate file report
+dua --path . --duplicates-output duplicates.md --duplicates-min-kb 4
 ```
 
 ### Command Line Options
@@ -132,8 +151,53 @@ dua --show-hidden
 | `--allow-delete` | Enable file/folder deletion |
 | `--follow-symlinks` | Follow symbolic links |
 | `--show-hidden` | Show hidden files and directories |
+| `--ignore <PATTERN>` | Ignore a path segment or nested path, repeatable |
+| `--ignore-preset <PRESET>` | Built-in ignore preset: `build`, `dependencies`, `system` |
+| `--export <FILE>` | Save scan summary report to a file |
+| `--export-format <FORMAT>` | Report format: `json`, `csv`, `md` |
+| `--compare-with <FILE>` | Compare current scan against a previously exported JSON snapshot |
+| `--compare-output <FILE>` | Save comparison report as Markdown |
+| `--large-files-output <FILE>` | Save large file and cleanup suggestion report as Markdown |
+| `--large-file-threshold-mb <MB>` | Threshold for large-file report, default `100` |
+| `--duplicates-output <FILE>` | Save duplicate-file report as Markdown |
+| `--duplicates-min-kb <KB>` | Minimum file size for duplicate scan, default `1` |
 | `-h, --help` | Print help information |
 | `-V, --version` | Print version |
+
+### Ignore Presets
+
+| Preset | Ignores |
+|--------|---------|
+| `build` | `target`, `dist`, `build`, `out`, `.next`, `coverage` |
+| `dependencies` | `node_modules`, `.pnpm-store`, `.yarn`, `.turbo` |
+| `system` | `.git`, `.cache`, `.DS_Store`, `Thumbs.db` |
+
+### Snapshot Compare
+
+- `--compare-with` onceki bir `json` snapshot dosyasini referans alir.
+- `--compare-output` fark raporunu Markdown olarak yazar.
+- Karsilastirma kullanirken mevcut taramanin da `--export` ve `--export-format json` ile kaydedilmesi gerekir.
+
+### Large File Cleanup Report
+
+- `--large-files-output` esitlik ustu buyuk dosyalari ve otomatik temizlik adaylarini Markdown olarak yazar.
+- `--large-file-threshold-mb` buyuk dosya esigini MB cinsinden belirler.
+- Ilk heuristikler `target`, `build`, `node_modules`, `cache` ve `log` benzeri dosyalari onerir.
+
+### Duplicate File Report
+
+- `--duplicates-output` ayni icerige sahip dosya gruplarini Markdown olarak yazar.
+- `--duplicates-min-kb` kucuk dosyalari tarama disi birakmak icin alt boyut esigi verir.
+- Duplicate tespiti boyut + SHA-256 icerik hash'i ile yapilir.
+
+### TUI Shortcuts
+
+- `p` rapor popup menüsünü açar.
+- `x` mevcut tarama icin `.dua-reports/snapshot.json` dosyasini uretir.
+- `f` mevcut tarama icin `.dua-reports/cleanup.md` dosyasini uretir.
+- `u` mevcut tarama icin `.dua-reports/duplicates.md` dosyasini uretir.
+- `p` ile acilan popup uzerinden de bu raporlar secilebilir.
+- Bu kisayollar footer uzerinden de tiklanabilir.
 
 ## Keyboard Shortcuts
 

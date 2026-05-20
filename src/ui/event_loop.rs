@@ -11,7 +11,7 @@ use ratatui::DefaultTerminal;
 
 use crate::app::{App, AppMode, ViewMode};
 use crate::model::get_all_drives;
-use crate::ui::widgets::{AboutWidget, ComputerViewWidget, DriveListWidget, ErrorWidget, FileListWidget, HelpWidget, SettingsWidget, StatsWidget, TreemapWidget};
+use crate::ui::widgets::{AboutWidget, ComputerViewWidget, DriveListWidget, ErrorWidget, FileListWidget, HelpWidget, ReportsWidget, SettingsWidget, StatsWidget, TreemapWidget};
 use crate::util::i18n::Strings;
 
 const TICK_RATE: Duration = Duration::from_millis(16); // ~60 FPS
@@ -147,7 +147,13 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('a') | KeyCode::Char('A') => app.open_about(),
             KeyCode::Char('s') | KeyCode::Char('S') => app.open_settings(),
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
+            KeyCode::Char('p') | KeyCode::Char('P') if app.scan_result.is_some() && !app.in_computer_view => {
+                app.open_reports_popup()
+            }
             KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
+            KeyCode::Char('x') | KeyCode::Char('X') => run_app_report_action(app, |app| app.export_snapshot_report()),
+            KeyCode::Char('f') | KeyCode::Char('F') => run_app_report_action(app, |app| app.export_cleanup_report(100)),
+            KeyCode::Char('u') | KeyCode::Char('U') => run_app_report_action(app, |app| app.export_duplicate_report(1)),
             KeyCode::Char('r') | KeyCode::Char('R') => app.refresh(),
             KeyCode::Char('+') | KeyCode::Char('=') => app.increase_font_size(),
             KeyCode::Char('-') | KeyCode::Char('_') => app.decrease_font_size(),
@@ -186,6 +192,27 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('h') | KeyCode::Char('H') => {
                 app.toggle_help()
             }
+            _ => {}
+        },
+        AppMode::Reports => match key {
+            KeyCode::Esc | KeyCode::Char('p') | KeyCode::Char('P') | KeyCode::Char('q') | KeyCode::Char('Q') => {
+                app.close_reports_popup()
+            }
+            KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K') => app.move_reports_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => app.move_reports_selection(1),
+            KeyCode::Char('x') | KeyCode::Char('X') => {
+                app.reports_selected_index = 0;
+                run_app_report_action(app, |app| app.execute_selected_report_action());
+            }
+            KeyCode::Char('f') | KeyCode::Char('F') => {
+                app.reports_selected_index = 1;
+                run_app_report_action(app, |app| app.execute_selected_report_action());
+            }
+            KeyCode::Char('u') | KeyCode::Char('U') => {
+                app.reports_selected_index = 2;
+                run_app_report_action(app, |app| app.execute_selected_report_action());
+            }
+            KeyCode::Enter => run_app_report_action(app, |app| app.execute_selected_report_action()),
             _ => {}
         },
         AppMode::About => match key {
@@ -303,6 +330,30 @@ fn handle_mouse_event(
                     }
                     return;
                 }
+                AppMode::Reports => {
+                    let popup_area = centered_rect(50, 45, Rect::new(0, 0, terminal_width, terminal_height));
+                    if col < popup_area.x
+                        || col >= popup_area.x + popup_area.width
+                        || row < popup_area.y
+                        || row >= popup_area.y + popup_area.height
+                    {
+                        app.close_reports_popup();
+                        return;
+                    }
+
+                    let content_start = popup_area.y + 4;
+                    if row >= content_start {
+                        let relative_row = row - content_start;
+                        let report_index = (relative_row / 3) as usize;
+                        if report_index < 3 {
+                            app.reports_selected_index = report_index;
+                            if is_double_click {
+                                run_app_report_action(app, |app| app.execute_selected_report_action());
+                            }
+                        }
+                    }
+                    return;
+                }
                 AppMode::Settings => {
                     // Check if click is inside settings area
                     let settings_width = (terminal_width * 65 / 100).min(terminal_width - 4);
@@ -369,6 +420,11 @@ fn handle_mouse_event(
                             "help" => app.toggle_help(),
                             "about" => app.open_about(),
                             "settings" => app.open_settings(),
+                            "reports" => {
+                                if app.scan_result.is_some() && !app.in_computer_view {
+                                    app.open_reports_popup();
+                                }
+                            }
                             "drives" => {
                                 if matches!(app.mode, AppMode::Browsing | AppMode::Scanning | AppMode::ComputerView) {
                                     app.open_drive_selector();
@@ -377,6 +433,9 @@ fn handle_mouse_event(
                             "view" => app.toggle_view(),
                             "sort" => app.cycle_sort_mode(),
                             "explorer" => app.open_in_explorer(),
+                            "snapshot" => run_app_report_action(app, |app| app.export_snapshot_report()),
+                            "cleanup" => run_app_report_action(app, |app| app.export_cleanup_report(100)),
+                            "duplicates" => run_app_report_action(app, |app| app.export_duplicate_report(1)),
                             "select" => {
                                 if !app.config.read_only {
                                     app.toggle_selection();
@@ -514,6 +573,7 @@ fn handle_mouse_event(
                 AppMode::Scanning | AppMode::Browsing => app.move_selection(-3),
                 AppMode::ComputerView => app.move_drive_selection(-1),
                 AppMode::DriveSelect => app.move_drive_selection(-1),
+                AppMode::Reports => app.move_reports_selection(-1),
                 AppMode::Settings => app.move_settings_selection(-1),
                 _ => {}
             }
@@ -523,11 +583,21 @@ fn handle_mouse_event(
                 AppMode::Scanning | AppMode::Browsing => app.move_selection(3),
                 AppMode::ComputerView => app.move_drive_selection(1),
                 AppMode::DriveSelect => app.move_drive_selection(1),
+                AppMode::Reports => app.move_reports_selection(1),
                 AppMode::Settings => app.move_settings_selection(1),
                 _ => {}
             }
         }
         _ => {}
+    }
+}
+
+fn run_app_report_action<F>(app: &mut App, action: F)
+where
+    F: FnOnce(&mut App) -> anyhow::Result<std::path::PathBuf>,
+{
+    if let Err(error) = action(app) {
+        app.message = Some(format!("Error: {}", error));
     }
 }
 
@@ -549,6 +619,7 @@ fn render_ui(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     // Render overlays
     match app.mode {
         AppMode::Help => render_help_overlay(frame, app, area),
+        AppMode::Reports => render_reports_overlay(frame, app, area),
         AppMode::About => render_about_overlay(frame, app, area),
         AppMode::Settings => render_settings_overlay(frame, app, area),
         AppMode::DeleteConfirm => render_delete_confirm(frame, app, area),
@@ -771,6 +842,13 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
 
     spans.push(Span::raw(" "));
 
+    if app.scan_result.is_some() && !app.in_computer_view {
+        spans.push(Span::styled(" ", menu_style));
+        spans.push(Span::styled("p", key_style));
+        spans.push(Span::styled(format!("{} ", s.get("footer.reports")), menu_style));
+        spans.push(Span::raw(" "));
+    }
+
     spans.push(Span::styled(" ", menu_style));
     spans.push(Span::styled("g", key_style));
     spans.push(Span::styled(format!("{} ", s.get("footer.drives")), menu_style));
@@ -798,6 +876,23 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     spans.push(Span::styled(" ", menu_style));
     spans.push(Span::styled("e", key_style));
     spans.push(Span::styled(format!("{} ", s.get("footer.explorer")), menu_style));
+
+    if app.scan_result.is_some() && !app.in_computer_view {
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(" ", menu_style));
+        spans.push(Span::styled("x", key_style));
+        spans.push(Span::styled(format!("{} ", s.get("footer.snapshot")), menu_style));
+
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(" ", menu_style));
+        spans.push(Span::styled("f", key_style));
+        spans.push(Span::styled(format!("{} ", s.get("footer.cleanup")), menu_style));
+
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(" ", menu_style));
+        spans.push(Span::styled("u", key_style));
+        spans.push(Span::styled(format!("{} ", s.get("footer.duplicates")), menu_style));
+    }
 
     if !app.config.read_only {
         spans.push(Span::raw(" "));
@@ -870,6 +965,12 @@ fn get_menu_positions(app: &App) -> Vec<(u16, u16, &'static str)> {
     positions.push((x, x + settings_len, "settings"));
     x += settings_len + 1;
 
+    if app.scan_result.is_some() && !app.in_computer_view {
+        let reports_len = 2 + display_width(s.get("footer.reports")) + 1;
+        positions.push((x, x + reports_len, "reports"));
+        x += reports_len + 1;
+    }
+
     // gDrives
     let drives_len = 2 + display_width(s.get("footer.drives")) + 1;
     positions.push((x, x + drives_len, "drives"));
@@ -890,6 +991,20 @@ fn get_menu_positions(app: &App) -> Vec<(u16, u16, &'static str)> {
     positions.push((x, x + explorer_len, "explorer"));
     x += explorer_len + 1;
 
+    if app.scan_result.is_some() && !app.in_computer_view {
+        let snapshot_len = 2 + display_width(s.get("footer.snapshot")) + 1;
+        positions.push((x, x + snapshot_len, "snapshot"));
+        x += snapshot_len + 1;
+
+        let cleanup_len = 2 + display_width(s.get("footer.cleanup")) + 1;
+        positions.push((x, x + cleanup_len, "cleanup"));
+        x += cleanup_len + 1;
+
+        let duplicates_len = 2 + display_width(s.get("footer.duplicates")) + 1;
+        positions.push((x, x + duplicates_len, "duplicates"));
+        x += duplicates_len + 1;
+    }
+
     if !app.config.read_only {
         // SpSelect: " " + "Sp" + "text "
         let select_len = 3 + display_width(s.get("footer.select")) + 1;
@@ -909,6 +1024,13 @@ fn render_help_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
     let help_area = centered_rect(60, 70, area);
     frame.render_widget(Clear, help_area);
     frame.render_widget(help, help_area);
+}
+
+fn render_reports_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let reports = ReportsWidget::new(app);
+    let reports_area = centered_rect(50, 45, area);
+    frame.render_widget(Clear, reports_area);
+    frame.render_widget(reports, reports_area);
 }
 
 fn render_about_overlay(frame: &mut ratatui::Frame, app: &App, area: Rect) {

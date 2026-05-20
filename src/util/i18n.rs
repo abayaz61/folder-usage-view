@@ -86,10 +86,14 @@ impl Strings {
         m.insert("footer.help", "Help");
         m.insert("footer.about", "About");
         m.insert("footer.settings", "Settings");
+        m.insert("footer.reports", "Reports");
         m.insert("footer.drives", "Drives");
         m.insert("footer.view", "View");
         m.insert("footer.sort", "Sort");
         m.insert("footer.explorer", "Explorer");
+        m.insert("footer.snapshot", "Snap");
+        m.insert("footer.cleanup", "Clean");
+        m.insert("footer.duplicates", "Dupes");
         m.insert("footer.select", "Select");
         m.insert("footer.delete", "Delete");
         m.insert("footer.read_only", "READ-ONLY");
@@ -109,6 +113,10 @@ impl Strings {
         m.insert("help.action_select", "Toggle selection");
         m.insert("help.action_delete", "Delete selected");
         m.insert("help.action_refresh", "Refresh / Change drive");
+        m.insert("help.action_reports", "Open reports menu");
+        m.insert("help.action_snapshot", "Write JSON snapshot report");
+        m.insert("help.action_cleanup", "Write large-file cleanup report");
+        m.insert("help.action_duplicates", "Write duplicate-file report");
         m.insert("help.view_toggle", "Toggle view mode");
         m.insert("help.sort_toggle", "Cycle sort mode");
         m.insert("help.open_explorer", "Open in Explorer");
@@ -117,6 +125,17 @@ impl Strings {
         m.insert("help.other_settings", "Settings");
         m.insert("help.other_quit", "Quit");
         m.insert("help.close", "Press any key to close");
+
+        // Reports popup
+        m.insert("reports.title", "Reports");
+        m.insert("reports.subtitle", "Choose a report to export");
+        m.insert("reports.snapshot", "Snapshot Report");
+        m.insert("reports.snapshot_desc", "Write current scan summary to JSON");
+        m.insert("reports.cleanup", "Cleanup Report");
+        m.insert("reports.cleanup_desc", "Write large-file and cleanup suggestions");
+        m.insert("reports.duplicates", "Duplicate Report");
+        m.insert("reports.duplicates_desc", "Write duplicate-file groups");
+        m.insert("reports.close", "Enter: export   Esc: close");
 
         // About screen
         m.insert("about.title", "About");
@@ -283,10 +302,14 @@ impl Strings {
         m.insert("footer.help", "Yardım");
         m.insert("footer.about", "Hakkında");
         m.insert("footer.settings", "Ayarlar");
+        m.insert("footer.reports", "Rapor");
         m.insert("footer.drives", "Diskler");
         m.insert("footer.view", "Görünüm");
         m.insert("footer.sort", "Sırala");
         m.insert("footer.explorer", "Klasör");
+        m.insert("footer.snapshot", "Anlık");
+        m.insert("footer.cleanup", "Temiz");
+        m.insert("footer.duplicates", "Kopya");
         m.insert("footer.select", "Seç");
         m.insert("footer.delete", "Sil");
         m.insert("footer.read_only", "SALT-OKUNUR");
@@ -306,6 +329,10 @@ impl Strings {
         m.insert("help.action_select", "Seçimi değiştir");
         m.insert("help.action_delete", "Seçilenleri sil");
         m.insert("help.action_refresh", "Yenile / Disk değiştir");
+        m.insert("help.action_reports", "Rapor menüsünü aç");
+        m.insert("help.action_snapshot", "JSON anlık görüntü raporu yaz");
+        m.insert("help.action_cleanup", "Büyük dosya / temizlik raporu yaz");
+        m.insert("help.action_duplicates", "Kopya dosya raporu yaz");
         m.insert("help.view_toggle", "Görünümü değiştir");
         m.insert("help.sort_toggle", "Sıralama değiştir");
         m.insert("help.open_explorer", "Klasörde aç");
@@ -314,6 +341,17 @@ impl Strings {
         m.insert("help.other_settings", "Ayarlar");
         m.insert("help.other_quit", "Çıkış");
         m.insert("help.close", "Kapatmak için bir tuşa basın");
+
+        // Reports popup
+        m.insert("reports.title", "Raporlar");
+        m.insert("reports.subtitle", "Dışa aktarmak için bir rapor seçin");
+        m.insert("reports.snapshot", "Anlık Görüntü");
+        m.insert("reports.snapshot_desc", "Mevcut tarama özetini JSON olarak yaz");
+        m.insert("reports.cleanup", "Temizlik Raporu");
+        m.insert("reports.cleanup_desc", "Büyük dosya ve temizlik önerilerini yaz");
+        m.insert("reports.duplicates", "Kopya Raporu");
+        m.insert("reports.duplicates_desc", "Kopya dosya gruplarını yaz");
+        m.insert("reports.close", "Enter: dışa aktar   Esc: kapat");
 
         // About screen
         m.insert("about.title", "Hakkında");

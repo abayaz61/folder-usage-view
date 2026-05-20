@@ -91,6 +91,22 @@ impl Widget for HelpWidget {
                 Span::styled("  g        ", key_style),
                 Span::styled(s.get("help.action_refresh").to_string(), desc_style),
             ]),
+            Line::from(vec![
+                Span::styled("  p        ", key_style),
+                Span::styled(s.get("help.action_reports").to_string(), desc_style),
+            ]),
+            Line::from(vec![
+                Span::styled("  x        ", key_style),
+                Span::styled(s.get("help.action_snapshot").to_string(), desc_style),
+            ]),
+            Line::from(vec![
+                Span::styled("  f        ", key_style),
+                Span::styled(s.get("help.action_cleanup").to_string(), desc_style),
+            ]),
+            Line::from(vec![
+                Span::styled("  u        ", key_style),
+                Span::styled(s.get("help.action_duplicates").to_string(), desc_style),
+            ]),
             Line::from(""),
             Line::from(Span::styled(s.get("help.other").to_string(), section_style)),
             Line::from(vec![
