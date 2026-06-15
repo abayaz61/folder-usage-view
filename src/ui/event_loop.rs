@@ -133,7 +133,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
             KeyCode::Char('o') | KeyCode::Char('O') => app.cycle_sort_mode(),
             KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
-            KeyCode::Char('r') | KeyCode::Char('R') => app.refresh(),
+            KeyCode::Char('r') | KeyCode::Char('R') | KeyCode::F(5) => app.refresh(),
             KeyCode::Char('+') | KeyCode::Char('=') => app.increase_font_size(),
             KeyCode::Char('-') | KeyCode::Char('_') => app.decrease_font_size(),
             KeyCode::Char('c') | KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
@@ -151,7 +151,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('x') | KeyCode::Char('X') => run_app_report_action(app, |app| app.export_snapshot_report()),
             KeyCode::Char('f') | KeyCode::Char('F') => run_app_report_action(app, |app| app.export_cleanup_report(100)),
             KeyCode::Char('u') | KeyCode::Char('U') => run_app_report_action(app, |app| app.export_duplicate_report(1)),
-            KeyCode::Char('r') | KeyCode::Char('R') => app.refresh(),
+            KeyCode::Char('r') | KeyCode::Char('R') | KeyCode::F(5) => app.refresh(),
             KeyCode::Char('+') | KeyCode::Char('=') => app.increase_font_size(),
             KeyCode::Char('-') | KeyCode::Char('_') => app.decrease_font_size(),
             // Shift+Up/Down for multi-select
@@ -634,11 +634,22 @@ fn render_header(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         .unwrap_or_default();
 
     let theme = app.theme();
-    let header = Paragraph::new(Line::from(vec![
+    let mut spans = vec![
         Span::styled(title, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
         Span::raw(" "),
         Span::styled(size_str, Style::default().fg(Color::Cyan)),
-    ]))
+    ];
+
+    // Show last scan completion time once a scan has finished.
+    if let Some(t) = &app.last_scan_time {
+        spans.push(Span::raw(" | "));
+        spans.push(Span::styled(
+            format!("{}: {}", s.get("header.last_scan"), t),
+            Style::default().fg(Color::DarkGray),
+        ));
+    }
+
+    let header = Paragraph::new(Line::from(spans))
     .block(
         Block::default()
             .borders(Borders::ALL)

@@ -125,6 +125,7 @@ impl Strings {
         m.insert("help.action_select", "Toggle selection");
         m.insert("help.action_delete", "Delete selected");
         m.insert("help.action_refresh", "Refresh / Change drive");
+        m.insert("help.action_rescan", "Rescan current folder");
         m.insert("help.action_reports", "Open reports menu");
         m.insert("help.action_snapshot", "Write JSON snapshot report");
         m.insert("help.action_cleanup", "Write large-file cleanup report");
@@ -274,6 +275,9 @@ impl Strings {
         m.insert("msg.navigating_to", "Navigating to:");
         m.insert("msg.already_at_computer", "Already at Computer view");
         m.insert("msg.error", "Error:");
+        m.insert("msg.rescanning", "Rescanning");
+
+        m.insert("header.last_scan", "Last scan");
 
         m
     }
@@ -341,6 +345,7 @@ impl Strings {
         m.insert("help.action_select", "Seçimi değiştir");
         m.insert("help.action_delete", "Seçilenleri sil");
         m.insert("help.action_refresh", "Yenile / Disk değiştir");
+        m.insert("help.action_rescan", "Mevcut klasörü yeniden tara");
         m.insert("help.action_reports", "Rapor menüsünü aç");
         m.insert("help.action_snapshot", "JSON anlık görüntü raporu yaz");
         m.insert("help.action_cleanup", "Büyük dosya / temizlik raporu yaz");
@@ -490,6 +495,9 @@ impl Strings {
         m.insert("msg.navigating_to", "Gidiliyor:");
         m.insert("msg.already_at_computer", "Zaten Bilgisayar görünümündesiniz");
         m.insert("msg.error", "Hata:");
+        m.insert("msg.rescanning", "Yeniden taranıyor");
+
+        m.insert("header.last_scan", "Son tarama");
 
         m
     }

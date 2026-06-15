@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use chrono::Local;
+
 use crate::model::{DriveInfo, FileTree, NodeId, get_all_drives};
 use crate::platform::get_platform_labels;
 use crate::report::{
@@ -154,6 +156,9 @@ pub struct App {
     // Render-path consumers should use `App::children()` instead of
     // `get_current_children()`.
     children_cache: ChildrenCache,
+    // Wall-clock time (HH:MM:SS) of the most recent completed scan, shown in
+    // the header toolbar. None until the first scan finishes.
+    pub last_scan_time: Option<String>,
 }
 
 impl App {
@@ -189,6 +194,7 @@ impl App {
             original_font_name: String::new(),
             original_font_size: 0,
             children_cache: std::cell::RefCell::new(None),
+            last_scan_time: None,
         }
     }
 
@@ -262,6 +268,8 @@ impl App {
                     ScanMessage::Completed(result) => {
                         self.scan_result = Some(result);
                         self.mode = AppMode::Browsing;
+                        self.last_scan_time =
+                            Some(Local::now().format("%H:%M:%S").to_string());
                         self.message = Some("Scan complete!".to_string());
                     }
                     ScanMessage::Error(err) => {
@@ -529,6 +537,8 @@ impl App {
         } else {
             self.config.target_path.clone()
         };
+        let s = crate::util::i18n::Strings::new(self.settings.language);
+        self.message = Some(format!("{}: {}", s.get("msg.rescanning"), path.display()));
         self.pending_rescan = Some(path);
     }
 
@@ -543,6 +553,7 @@ impl App {
         self.selected_index = 0;
         self.scan_progress = None;
         self.scan_result = None;
+        self.last_scan_time = None;
         self.navigation_stack.clear();
         self.cancel_flag = Arc::new(AtomicBool::new(false));
         self.in_computer_view = false;

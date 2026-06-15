@@ -92,6 +92,10 @@ impl Widget for HelpWidget {
                 Span::styled(s.get("help.action_refresh").to_string(), desc_style),
             ]),
             Line::from(vec![
+                Span::styled("  F5       ", key_style),
+                Span::styled(s.get("help.action_rescan").to_string(), desc_style),
+            ]),
+            Line::from(vec![
                 Span::styled("  p        ", key_style),
                 Span::styled(s.get("help.action_reports").to_string(), desc_style),
             ]),
