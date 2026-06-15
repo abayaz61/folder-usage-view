@@ -16,6 +16,28 @@ pub enum StartupLocation {
     ComputerView,
 }
 
+/// Behavior when a new scan is requested while a previous one is still running.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum ScanConflict {
+    /// Cancel the in-flight scan (signal it, then start the new one). Default.
+    #[default]
+    Cancel,
+    /// Wait for the in-flight scan to finish, then start the new one.
+    Queue,
+    /// Let both scans run concurrently (highest resource contention).
+    Parallel,
+}
+
+impl ScanConflict {
+    pub fn next(self) -> Self {
+        match self {
+            ScanConflict::Cancel => ScanConflict::Queue,
+            ScanConflict::Queue => ScanConflict::Parallel,
+            ScanConflict::Parallel => ScanConflict::Cancel,
+        }
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     pub startup_location: StartupLocation,
@@ -41,6 +63,8 @@ pub struct Settings {
     pub font_name: String,
     #[serde(default = "default_font_size")]
     pub font_size: u16,
+    #[serde(default)]
+    pub scan_conflict: ScanConflict,
 }
 
 fn default_true() -> bool {
@@ -71,6 +95,7 @@ impl Default for Settings {
             run_as_admin: false,
             font_name: default_font_name(),
             font_size: default_font_size(),
+            scan_conflict: ScanConflict::default(),
         }
     }
 }

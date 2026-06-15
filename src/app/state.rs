@@ -15,7 +15,7 @@ use crate::scanner::{find_duplicate_files, ScanMessage, ScanProgress, ScanResult
 use crate::ui::theme::{Icons, Theme};
 
 use super::config::Config;
-use super::settings::Settings;
+use super::settings::{ScanConflict, Settings};
 
 /// Cached results of expensive platform checks (registry queries, process spawns, file checks).
 /// Refreshed only when the settings page opens or a setting is toggled.
@@ -406,9 +406,8 @@ impl App {
             if self.drive_selected_index < self.drives.len() {
                 let drive = &self.drives[self.drive_selected_index];
                 let path = drive.mount_point.clone();
-                self.pending_rescan = Some(path.clone());
-                self.message = Some(format!("Opening: {}", path.display()));
                 self.in_computer_view = false;
+                self.trigger_rescan(path);
             }
             return;
         }
@@ -498,8 +497,7 @@ impl App {
                 // Go to computer view instead
                 self.open_computer_view();
             } else if parent_path.exists() && parent_path.is_dir() {
-                self.pending_rescan = Some(parent_path.to_path_buf());
-                self.message = Some(format!("Navigating to: {}", parent_path.display()));
+                self.trigger_rescan(parent_path.to_path_buf());
             } else {
                 self.open_computer_view();
             }
@@ -537,26 +535,38 @@ impl App {
         } else {
             self.config.target_path.clone()
         };
+        self.trigger_rescan(path);
+    }
+
+    /// Request a rescan of `path`, honoring the configured `scan_conflict`
+    /// behavior. This is the single entry point for all rescan triggers
+    /// (F5, drive selection, parent navigation).
+    ///
+    /// - `Cancel`: signal the in-flight scan to stop (cancel_flag), then queue
+    ///   the rescan. `main.rs` will additionally join the old thread before
+    ///   starting the new one.
+    /// - `Queue`: just queue the rescan; `main.rs` waits for the old thread.
+    /// - `Parallel`: just queue the rescan; the old thread is orphaned.
+    pub fn trigger_rescan(&mut self, path: PathBuf) {
         let s = crate::util::i18n::Strings::new(self.settings.language);
         self.message = Some(format!("{}: {}", s.get("msg.rescanning"), path.display()));
+
+        match self.settings.scan_conflict {
+            ScanConflict::Cancel => {
+                // Signal the in-flight scanner to stop as soon as possible.
+                self.cancel_flag.store(true, Ordering::Relaxed);
+            }
+            ScanConflict::Queue | ScanConflict::Parallel => {
+                // Queue: main.rs waits for the old thread.
+                // Parallel: old thread keeps running.
+            }
+        }
+
         self.pending_rescan = Some(path);
     }
 
     pub fn take_pending_rescan(&mut self) -> Option<PathBuf> {
         self.pending_rescan.take()
-    }
-
-    pub fn reset_for_rescan(&mut self, new_path: PathBuf) {
-        self.config.target_path = new_path;
-        self.tree = FileTree::new();
-        self.current_node = None;
-        self.selected_index = 0;
-        self.scan_progress = None;
-        self.scan_result = None;
-        self.last_scan_time = None;
-        self.navigation_stack.clear();
-        self.cancel_flag = Arc::new(AtomicBool::new(false));
-        self.in_computer_view = false;
     }
 
     pub fn move_selection(&mut self, delta: i32) {
@@ -826,10 +836,9 @@ impl App {
         if self.drive_selected_index < self.drives.len() {
             let drive = &self.drives[self.drive_selected_index];
             let path = drive.mount_point.clone();
-            self.pending_rescan = Some(path.clone());
-            self.message = Some(format!("Switching to: {}", path.display()));
             self.mode = AppMode::Browsing;
             self.in_computer_view = false;
+            self.trigger_rescan(path);
         }
     }
 
@@ -987,13 +996,13 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 14; // Number of settings options
+        const SETTINGS_COUNT: usize = 15; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
 
     pub fn toggle_current_setting(&mut self) {
-        use super::settings::{windows, StartupLocation};
+        use super::settings::{windows, ScanConflict, StartupLocation};
 
         match self.settings_selected_index {
             0 => {
@@ -1177,6 +1186,16 @@ impl App {
                     Ok(()) => self.message = Some(format!("Font size: {}pt", self.settings.font_size)),
                     Err(e) => self.message = Some(format!("Error: {}", e)),
                 }
+            }
+            14 => {
+                // Cycle scan conflict behavior
+                self.settings.scan_conflict = self.settings.scan_conflict.next();
+                let label = match self.settings.scan_conflict {
+                    ScanConflict::Cancel => "Cancel",
+                    ScanConflict::Queue => "Queue",
+                    ScanConflict::Parallel => "Parallel",
+                };
+                self.message = Some(format!("Scan conflict: {}", label));
             }
             _ => {}
         }

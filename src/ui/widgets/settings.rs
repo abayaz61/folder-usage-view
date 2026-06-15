@@ -4,6 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
+use crate::app::settings::ScanConflict;
 use crate::app::{App, StartupLocation};
 use crate::platform::get_platform_labels;
 use crate::util::i18n::Strings;
@@ -302,6 +303,20 @@ impl Widget for SettingsWidget<'_> {
             &font_size_str,
             s.get("settings.font_size_desc"),
             font_available,
+        ));
+
+        // Scan conflict behavior option
+        let scan_conflict_value = match self.app.settings.scan_conflict {
+            ScanConflict::Cancel => s.get("scan_conflict.cancel"),
+            ScanConflict::Queue => s.get("scan_conflict.queue"),
+            ScanConflict::Parallel => s.get("scan_conflict.parallel"),
+        };
+        lines.extend(self.render_option(
+            14,
+            s.get("settings.scan_conflict"),
+            scan_conflict_value,
+            s.get("settings.scan_conflict_desc"),
+            true,
         ));
 
         // Footer

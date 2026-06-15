@@ -208,6 +208,11 @@ impl Strings {
         m.insert("settings.font_name_desc", "Select monospace font for console display");
         m.insert("settings.font_size", "Font Size");
         m.insert("settings.font_size_desc", "Console font size in points");
+        m.insert("settings.scan_conflict", "Scan Conflict");
+        m.insert("settings.scan_conflict_desc", "What happens when a new scan starts");
+        m.insert("scan_conflict.cancel", "Cancel previous");
+        m.insert("scan_conflict.queue", "Wait for previous");
+        m.insert("scan_conflict.parallel", "Run in parallel");
 
         // Startup locations
         m.insert("startup.last_location", "Last Location");
@@ -428,6 +433,11 @@ impl Strings {
         m.insert("settings.font_name_desc", "Konsol görüntüleme için monospace font seçin");
         m.insert("settings.font_size", "Font Boyutu");
         m.insert("settings.font_size_desc", "Konsol font boyutu (punto)");
+        m.insert("settings.scan_conflict", "Tarama Çakışması");
+        m.insert("settings.scan_conflict_desc", "Yeni tarama başlayınca ne olsun");
+        m.insert("scan_conflict.cancel", "Öncekini iptal et");
+        m.insert("scan_conflict.queue", "Öncekini bekle");
+        m.insert("scan_conflict.parallel", "Paralel çalıştır");
 
         // Startup locations
         m.insert("startup.last_location", "Son Konum");

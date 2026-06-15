@@ -365,7 +365,7 @@ fn handle_mouse_event(
                     // Inside settings - check for option clicks
                     let relative_row = row.saturating_sub(settings_y + 5); // Skip header
                     let option_index = (relative_row / 3) as usize; // Each option takes 3 rows
-                    if option_index < 14 {
+                    if option_index < 15 {
                         app.settings_selected_index = option_index;
                         if is_double_click {
                             app.toggle_current_setting();

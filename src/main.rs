@@ -9,7 +9,7 @@ use crossterm::execute;
 use ratatui::DefaultTerminal;
 
 use disk_usage_analyzer::app::{load_last_location, save_last_location, App, Config, Settings, StartupLocation};
-use disk_usage_analyzer::app::settings::windows as settings_windows;
+use disk_usage_analyzer::app::settings::{windows as settings_windows, ScanConflict};
 use disk_usage_analyzer::report::{
     build_large_file_report, compare_saved_reports, write_large_file_report, write_report,
     build_duplicate_files_report, write_duplicate_files_report, ExportRequest, ReportFormat,
@@ -278,6 +278,13 @@ fn run_main_loop(
 ) -> anyhow::Result<FinalOutcome> {
     let mut final_scan_result: Option<disk_usage_analyzer::scanner::ScanResult>;
     let mut first_run = true;
+    // Handle of the most recently spawned scanner thread. Kept across loop
+    // iterations so a rescan can wait for (Cancel/Queue) or drop (Parallel)
+    // the previous scan before starting the new one. Initialized to None; the
+    // `unused_assignments` lint flags the initial None because the first loop
+    // iteration overwrites it, but the binding must still start initialized.
+    #[allow(unused_assignments)]
+    let mut scan_handle: Option<std::thread::JoinHandle<()>> = None;
     let parsed_ignore_presets = args
         .ignore_presets
         .iter()
@@ -337,7 +344,7 @@ fn run_main_loop(
         let show_hidden = args.show_hidden;
         let ignore_matcher = app.config.ignore_matcher();
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             let scanner = ParallelScanner::new()
                 .follow_symlinks(follow_symlinks)
                 .skip_hidden(!show_hidden)
@@ -347,6 +354,7 @@ fn run_main_loop(
                 let _ = tx.send(disk_usage_analyzer::scanner::ScanMessage::Error(e.to_string()));
             }
         });
+        scan_handle = Some(handle);
 
         // Run the app
         let result = run_app(terminal, &mut app);
@@ -356,7 +364,26 @@ fn run_main_loop(
 
         match result {
             Ok(Some(new_path)) => {
-                // Rescan requested - update target path and continue loop
+                // Rescan requested. Wait for the previous scan thread according
+                // to the configured conflict policy:
+                //   Cancel: cancel_flag was already set in trigger_rescan; join
+                //           so the old thread fully unwinds (frees its rayon pool)
+                //           before we spawn the new one.
+                //   Queue:  join and wait for the old scan to finish naturally.
+                //   Parallel: drop the handle (old thread keeps running).
+                match settings.scan_conflict {
+                    ScanConflict::Cancel | ScanConflict::Queue => {
+                        if let Some(handle) = scan_handle.take() {
+                            let _ = handle.join();
+                        }
+                    }
+                    ScanConflict::Parallel => {
+                        // Orphan the old thread: drop the handle without
+                        // joining so it keeps running on its own.
+                        drop(scan_handle.take());
+                    }
+                }
+                // Update target path and continue loop
                 target_path = new_path;
                 // Save location for next session
                 let _ = save_last_location(&target_path);
