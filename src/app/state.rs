@@ -104,6 +104,15 @@ impl SortMode {
     }
 }
 
+/// A single entry in the cached children list: (id, name, size, is_dir).
+pub type ChildEntry = (NodeId, String, u64, bool);
+
+/// Per-frame cache of the current node's children, keyed on
+/// (current_node, sort_mode, tree.version) so it invalidates on navigation,
+/// re-sort, and any structural tree mutation. `RefCell` lets immutable render
+/// paths populate it on a miss (rendering is single-threaded).
+pub type ChildrenCache = std::cell::RefCell<Option<(Option<NodeId>, SortMode, u64, Vec<ChildEntry>)>>;
+
 pub struct App {
     pub config: Config,
     pub mode: AppMode,
@@ -139,6 +148,12 @@ pub struct App {
     // Font preview state (for revert on cancel)
     pub original_font_name: String,
     pub original_font_size: u16,
+    // Per-frame cache of the current node's children. Keyed on
+    // (current_node, sort_mode, tree.version) so it invalidates on navigation,
+    // re-sort, and any structural tree mutation (insert during scan, delete).
+    // Render-path consumers should use `App::children()` instead of
+    // `get_current_children()`.
+    children_cache: ChildrenCache,
 }
 
 impl App {
@@ -173,6 +188,7 @@ impl App {
             pending_admin_restart: false,
             original_font_name: String::new(),
             original_font_size: 0,
+            children_cache: std::cell::RefCell::new(None),
         }
     }
 
@@ -266,6 +282,49 @@ impl App {
         } else {
             Vec::new()
         }
+    }
+
+    /// Cached version of `get_current_children()` for render-path consumers.
+    /// The cached value is reused while `(current_node, sort_mode, tree.version)`
+    /// is unchanged, and recomputed otherwise. Multiple render widgets calling
+    /// this within a single frame share one sort + clone pass instead of each
+    /// redoing it. Event handlers should keep using `get_current_children()`.
+    ///
+    /// Returns a `Ref` borrowing the cached slice (interior mutability, safe in
+    /// the single-threaded render loop). Derefs to `[ChildEntry]`.
+    pub fn children(&self) -> std::cell::Ref<'_, [ChildEntry]> {
+        let key_node = self.current_node;
+        let key_mode = self.sort_mode;
+        let key_version = self.tree.version();
+
+        // Check validity under a short-lived borrow, then drop it before any
+        // write so we never hold two borrows at once.
+        let valid = self
+            .children_cache
+            .borrow()
+            .as_ref()
+            .map(|(n, m, v, _)| *n == key_node && *m == key_mode && *v == key_version)
+            .unwrap_or(false);
+
+        if !valid {
+            let children = if let Some(current) = key_node {
+                self.tree
+                    .get_children_sorted(current, key_mode)
+                    .into_iter()
+                    .map(|(id, node)| (id, node.name.clone(), node.size, node.is_dir()))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            *self.children_cache.borrow_mut() =
+                Some((key_node, key_mode, key_version, children));
+        }
+
+        // Map the borrow down to the cached Vec's slice. Unwrap is safe: we
+        // just populated Some(..) on the miss path, and the hit path keeps it.
+        std::cell::Ref::map(self.children_cache.borrow(), |c| {
+            c.as_ref().expect("children cache populated").3.as_slice()
+        })
     }
 
     pub fn cycle_sort_mode(&mut self) {

@@ -34,7 +34,7 @@ impl Widget for FileListWidget<'_> {
             return;
         }
 
-        let children = self.app.get_current_children();
+        let children = self.app.children();
         // Always show ".." when browsing/scanning - either to go to parent folder or to ComputerView
         let has_parent = self.app.current_node.is_some() && !self.app.in_computer_view;
 

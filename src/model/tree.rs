@@ -14,6 +14,14 @@ pub struct FileTree {
     path_index: HashMap<PathBuf, NodeId>,
     node_paths: HashMap<NodeId, PathBuf>,
     pub statistics: TreeStatistics,
+    /// Number of nodes currently flagged `selected`. Maintained alongside
+    /// `toggle_selection` / `clear_all_selections` / `remove` so callers that
+    /// only need the count (e.g. the footer, rendered every tick) can avoid a
+    /// full arena scan via `get_selected()`.
+    selected_count: usize,
+    /// Bumped on every structural mutation (insert/remove/set_root). Used to
+    /// invalidate per-frame caches in `App` that key off the current node.
+    version: u64,
 }
 
 impl FileTree {
@@ -24,6 +32,8 @@ impl FileTree {
             path_index: HashMap::new(),
             node_paths: HashMap::new(),
             statistics: TreeStatistics::new(),
+            selected_count: 0,
+            version: 0,
         }
     }
 
@@ -40,6 +50,7 @@ impl FileTree {
         self.path_index.insert(root_path.clone(), id);
         self.node_paths.insert(id, root_path);
         self.statistics.add_directory();
+        self.version = self.version.wrapping_add(1);
         id
     }
 
@@ -122,6 +133,7 @@ impl FileTree {
             let node = TreeNode::new_file(name.clone(), size, Some(parent_id), depth, category);
 
             let id = self.arena.insert(node);
+            self.version = self.version.wrapping_add(1);
             let entry_path = path.to_path_buf();
             self.path_index.insert(entry_path.clone(), id);
             self.node_paths.insert(id, entry_path);
@@ -151,6 +163,7 @@ impl FileTree {
         };
 
         let id = self.arena.insert(node);
+        self.version = self.version.wrapping_add(1);
         let entry_path = path.to_path_buf();
         self.path_index.insert(entry_path.clone(), id);
         self.node_paths.insert(id, entry_path);
@@ -252,6 +265,11 @@ impl FileTree {
     pub fn toggle_selection(&mut self, id: NodeId) {
         if let Some(node) = self.arena.get_mut(id) {
             node.selected = !node.selected;
+            if node.selected {
+                self.selected_count += 1;
+            } else {
+                self.selected_count -= 1;
+            }
         }
     }
 
@@ -263,10 +281,17 @@ impl FileTree {
             .collect()
     }
 
+    /// O(1) count of currently selected nodes. Prefer this over
+    /// `get_selected().len()` when only the count is needed (e.g. rendering).
+    pub fn selected_count(&self) -> usize {
+        self.selected_count
+    }
+
     pub fn clear_all_selections(&mut self) {
         for (_, node) in self.arena.iter_mut() {
             node.selected = false;
         }
+        self.selected_count = 0;
     }
 
     pub fn get_path(&self, id: NodeId) -> Option<PathBuf> {
@@ -275,6 +300,11 @@ impl FileTree {
 
     pub fn remove(&mut self, id: NodeId) -> bool {
         if let Some(node) = self.arena.remove(id) {
+            // Account for this node's selection state.
+            if node.selected {
+                self.selected_count = self.selected_count.saturating_sub(1);
+            }
+
             // Remove from parent's children
             if let Some(parent_id) = node.parent {
                 if let Some(parent) = self.arena.get_mut(parent_id) {
@@ -287,15 +317,23 @@ impl FileTree {
                 self.path_index.remove(&path);
             }
 
-            // Recursively remove children
+            // Recursively remove children (each recursive call updates
+            // selected_count for its own node).
             for child_id in node.children.iter() {
                 self.remove(*child_id);
             }
 
+            self.version = self.version.wrapping_add(1);
             true
         } else {
             false
         }
+    }
+
+    /// Current structural-mutation version. Incremented on insert/remove/
+    /// set_root so caches keyed on it can detect staleness.
+    pub fn version(&self) -> u64 {
+        self.version
     }
 
     pub fn total_nodes(&self) -> usize {
@@ -393,6 +431,7 @@ impl FileTree {
             };
 
             let child_id = self.arena.insert(node);
+            self.version = self.version.wrapping_add(1);
             self.path_index.insert(entry_path.clone(), child_id);
             self.node_paths.insert(child_id, entry_path);
 

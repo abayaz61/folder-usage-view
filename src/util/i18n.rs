@@ -1,6 +1,7 @@
 //! Internationalization (i18n) module with embedded language strings
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub enum Language {
@@ -32,22 +33,33 @@ impl Language {
     }
 }
 
-/// Localized strings for the application
+/// Localized strings for the application.
+///
+/// Holds a `&'static` reference to a lazily-initialized lookup table, so
+/// constructing a `Strings` is O(1) and allocation-free — safe to call on
+/// every render frame.
 pub struct Strings {
-    strings: HashMap<&'static str, &'static str>,
+    strings: &'static HashMap<&'static str, &'static str>,
 }
 
 impl Strings {
     pub fn new(lang: Language) -> Self {
         let strings = match lang {
-            Language::English => Self::english(),
-            Language::Turkish => Self::turkish(),
+            Language::English => &*ENGLISH_STRINGS,
+            Language::Turkish => &*TURKISH_STRINGS,
         };
         Self { strings }
     }
 
-    pub fn get<'a>(&'a self, key: &'a str) -> &'a str {
-        self.strings.get(key).copied().unwrap_or(key)
+    pub fn get(&self, key: &str) -> &'static str {
+        self.strings.get(key).copied().unwrap_or_else(|| {
+            // Fall back to the key itself if no translation exists.
+            // SAFETY/leak note: we cannot return the non-'static `key` as
+            // &'static, so leak the rare unknown key to keep the signature
+            // 'static-friendly. Unknown keys are programmer error (hardcoded
+            // literals) and never large.
+            Box::leak(key.to_string().into_boxed_str())
+        })
     }
 
     fn english() -> HashMap<&'static str, &'static str> {
@@ -482,6 +494,14 @@ impl Strings {
         m
     }
 }
+
+/// Lazily-built static lookup tables, constructed once on first use.
+/// `Strings::new` just picks the right `&'static` reference — no per-call
+/// allocation, so this is safe to call on every render frame.
+static ENGLISH_STRINGS: LazyLock<HashMap<&'static str, &'static str>> =
+    LazyLock::new(Strings::english);
+static TURKISH_STRINGS: LazyLock<HashMap<&'static str, &'static str>> =
+    LazyLock::new(Strings::turkish);
 
 /// Global strings accessor - call with current language
 pub fn t(lang: Language, key: &str) -> String {

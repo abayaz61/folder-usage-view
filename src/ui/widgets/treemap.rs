@@ -65,8 +65,8 @@ impl Widget for TreemapWidget<'_> {
         let bounds = LayoutRect::from(inner);
         let rectangles = layout.layout(&items, bounds);
 
-        // Get selected index for highlighting
-        let selected_children = self.app.get_current_children();
+        // Get selected index for highlighting (shares the per-frame children cache)
+        let selected_children = self.app.children();
         let selected_id = selected_children
             .get(self.app.selected_index)
             .map(|(id, _, _, _)| *id);

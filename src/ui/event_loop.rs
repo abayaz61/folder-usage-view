@@ -432,7 +432,7 @@ fn handle_mouse_event(
                             "select" if !app.config.read_only => {
                                 app.toggle_selection();
                             }
-                            "delete" if !app.config.read_only && !app.tree.get_selected().is_empty() => {
+                            "delete" if !app.config.read_only && app.tree.selected_count() > 0 => {
                                 app.confirm_delete();
                             }
                             _ => {}
@@ -787,7 +787,7 @@ fn render_footer(frame: &mut ratatui::Frame, app: &App, area: Rect) {
         ViewMode::Split => "SPLIT",
     };
 
-    let selected_count = app.tree.get_selected().len();
+    let selected_count = app.tree.selected_count();
     let selected_str = if selected_count > 0 {
         format!(" {} {}", selected_count, s.get("footer.selected"))
     } else {
