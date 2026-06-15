@@ -43,7 +43,7 @@ impl Widget for FileListWidget<'_> {
             let msg = s.get("filelist.empty");
             let x = inner.x + (inner.width.saturating_sub(msg.len() as u16)) / 2;
             let y = inner.y + inner.height / 2;
-            buf.set_string(x, y, &msg, Style::default().fg(Color::DarkGray));
+            buf.set_string(x, y, msg, Style::default().fg(Color::DarkGray));
             return;
         }
 
@@ -202,7 +202,7 @@ impl Widget for FileListWidget<'_> {
 
             // Size (right-aligned)
             let size_x = inner.right().saturating_sub(18);
-            buf.set_string(size_x, y_pos, &format!("{:>10}", size_str), size_style);
+            buf.set_string(size_x, y_pos, format!("{:>10}", size_str), size_style);
 
             // Percentage
             let pct_x = inner.right().saturating_sub(7);

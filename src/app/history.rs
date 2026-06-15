@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const APP_NAME: &str = "folder-usage-view";
 const HISTORY_FILE: &str = "last_location.txt";
@@ -19,7 +19,7 @@ fn get_config_dir() -> Option<PathBuf> {
     }
 }
 
-pub fn save_last_location(path: &PathBuf) -> std::io::Result<()> {
+pub fn save_last_location(path: &Path) -> std::io::Result<()> {
     if let Some(config_dir) = get_config_dir() {
         fs::create_dir_all(&config_dir)?;
         let history_path = config_dir.join(HISTORY_FILE);

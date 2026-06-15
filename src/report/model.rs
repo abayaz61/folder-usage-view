@@ -122,7 +122,7 @@ impl ScanReport {
                     .unwrap_or(0),
             })
             .collect();
-        categories.sort_by(|a, b| b.size.cmp(&a.size));
+        categories.sort_by_key(|b| std::cmp::Reverse(b.size));
 
         let mut largest_files: Vec<_> = tree
             .statistics
@@ -137,7 +137,7 @@ impl ScanReport {
                 size: *size,
             })
             .collect();
-        largest_files.sort_by(|a, b| b.size.cmp(&a.size));
+        largest_files.sort_by_key(|b| std::cmp::Reverse(b.size));
 
         Self {
             scanned_path: path.display().to_string(),
@@ -184,7 +184,7 @@ pub fn compare_reports(baseline: &ScanReport, current: &ScanReport) -> CompareRe
         });
     }
 
-    category_diffs.sort_by(|a, b| b.current_size.cmp(&a.current_size));
+    category_diffs.sort_by_key(|b| std::cmp::Reverse(b.current_size));
 
     CompareReport {
         baseline_path: baseline.scanned_path.clone(),
@@ -212,7 +212,7 @@ pub fn build_large_file_report(
 
     let suggestions = large_files
         .iter()
-        .filter_map(|file| build_cleanup_suggestion(file))
+        .filter_map(build_cleanup_suggestion)
         .collect();
 
     LargeFileCleanupReport {

@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 #[derive(Debug, Clone)]
 pub struct ScannedEntry {
@@ -7,6 +7,7 @@ pub struct ScannedEntry {
     pub parent_path: PathBuf,
     pub size: u64,
     pub is_dir: bool,
+    pub modified: Option<SystemTime>,
 }
 
 #[derive(Debug, Clone)]

@@ -55,10 +55,8 @@ pub fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<Opti
 
         if event::poll(timeout)? {
             match event::read()? {
-                Event::Key(key) => {
-                    if key.kind == KeyEventKind::Press {
-                        handle_key_event(app, key.code, key.modifiers, terminal_width);
-                    }
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    handle_key_event(app, key.code, key.modifiers, terminal_width);
                 }
                 Event::Mouse(mouse) => {
                     let is_double_click = if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
@@ -149,8 +147,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Char('g') | KeyCode::Char('G') => app.open_drive_selector(),
             KeyCode::Char('p') | KeyCode::Char('P') if app.scan_result.is_some() && !app.in_computer_view => {
                 app.open_reports_popup()
-            }
-            KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
+            }            KeyCode::Char('e') | KeyCode::Char('E') => app.open_in_explorer(),
             KeyCode::Char('x') | KeyCode::Char('X') => run_app_report_action(app, |app| app.export_snapshot_report()),
             KeyCode::Char('f') | KeyCode::Char('F') => run_app_report_action(app, |app| app.export_cleanup_report(100)),
             KeyCode::Char('u') | KeyCode::Char('U') => run_app_report_action(app, |app| app.export_duplicate_report(1)),
@@ -215,9 +212,7 @@ fn handle_key_event(app: &mut App, key: KeyCode, modifiers: KeyModifiers, termin
             KeyCode::Enter => run_app_report_action(app, |app| app.execute_selected_report_action()),
             _ => {}
         },
-        AppMode::About => match key {
-            _ => app.close_about(), // Any key closes about
-        },
+        AppMode::About => app.close_about(), // Any key closes about
         AppMode::Settings => match key {
             KeyCode::Esc => app.cancel_settings(),
             KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Char('s') | KeyCode::Char('S') => app.close_settings(),
@@ -420,10 +415,8 @@ fn handle_mouse_event(
                             "help" => app.toggle_help(),
                             "about" => app.open_about(),
                             "settings" => app.open_settings(),
-                            "reports" => {
-                                if app.scan_result.is_some() && !app.in_computer_view {
-                                    app.open_reports_popup();
-                                }
+                            "reports" if app.scan_result.is_some() && !app.in_computer_view => {
+                                app.open_reports_popup();
                             }
                             "drives" => {
                                 if matches!(app.mode, AppMode::Browsing | AppMode::Scanning | AppMode::ComputerView) {
@@ -436,15 +429,11 @@ fn handle_mouse_event(
                             "snapshot" => run_app_report_action(app, |app| app.export_snapshot_report()),
                             "cleanup" => run_app_report_action(app, |app| app.export_cleanup_report(100)),
                             "duplicates" => run_app_report_action(app, |app| app.export_duplicate_report(1)),
-                            "select" => {
-                                if !app.config.read_only {
-                                    app.toggle_selection();
-                                }
+                            "select" if !app.config.read_only => {
+                                app.toggle_selection();
                             }
-                            "delete" => {
-                                if !app.config.read_only && !app.tree.get_selected().is_empty() {
-                                    app.confirm_delete();
-                                }
+                            "delete" if !app.config.read_only && !app.tree.get_selected().is_empty() => {
+                                app.confirm_delete();
                             }
                             _ => {}
                         }
@@ -479,77 +468,75 @@ fn handle_mouse_event(
                             }
                         }
                     }
-                    AppMode::Scanning | AppMode::Browsing => {
+                    AppMode::Scanning | AppMode::Browsing
                         // File list clicks (in List or Split view)
-                        if app.view_mode == ViewMode::List || app.view_mode == ViewMode::Split {
-                            let list_start = if app.mode == AppMode::Scanning {
-                                content_start + 8 // After scan progress
-                            } else {
-                                content_start
-                            };
+                        if app.view_mode == ViewMode::List || app.view_mode == ViewMode::Split =>
+                    {
+                        let list_start = if app.mode == AppMode::Scanning {
+                            content_start + 8 // After scan progress
+                        } else {
+                            content_start
+                        };
 
-                            // List takes 60% in List mode, 30% in Split mode
-                            let list_width = match app.view_mode {
-                                ViewMode::List => terminal_width * 60 / 100,
-                                ViewMode::Split => terminal_width * 30 / 100,
-                                _ => 0,
-                            };
-                            let list_x_start = match app.view_mode {
-                                ViewMode::Split => terminal_width * 40 / 100,
-                                _ => 0,
-                            };
+                        // List takes 60% in List mode, 30% in Split mode
+                        let list_width = match app.view_mode {
+                            ViewMode::List => terminal_width * 60 / 100,
+                            ViewMode::Split => terminal_width * 30 / 100,
+                            _ => 0,
+                        };
+                        let list_x_start = match app.view_mode {
+                            ViewMode::Split => terminal_width * 40 / 100,
+                            _ => 0,
+                        };
 
-                            if col >= list_x_start && col < list_x_start + list_width &&
-                               row >= list_start + 1 && row < content_end - 1 {
-                                let relative_row = (row - list_start - 1) as usize;
-                                let children_count = app.get_current_children().len();
-                                let has_parent = app.current_node.is_some() && !app.in_computer_view;
+                        if col >= list_x_start && col < list_x_start + list_width &&
+                           row > list_start && row < content_end - 1 {
+                            let relative_row = (row - list_start - 1) as usize;
+                            let children_count = app.get_current_children().len();
+                            let has_parent = app.current_node.is_some() && !app.in_computer_view;
 
-                                // Account for ".." entry at top
-                                if has_parent {
-                                    if relative_row == 0 {
-                                        // Clicked on ".."
-                                        if is_double_click {
-                                            app.navigate_back();
-                                        } else if app.parent_entry_selected {
-                                            // Already selected, navigate back
-                                            app.navigate_back();
-                                        } else {
-                                            app.selected_index = 0;
-                                            app.parent_entry_selected = true;
-                                        }
+                            // Account for ".." entry at top
+                            if has_parent {
+                                if relative_row == 0 {
+                                    // Clicked on ".."
+                                    if is_double_click {
+                                        app.navigate_back();
+                                    } else if app.parent_entry_selected {
+                                        // Already selected, navigate back
+                                        app.navigate_back();
                                     } else {
-                                        let item_index = relative_row - 1;
-                                        if item_index < children_count {
-                                            let was_selected = !app.parent_entry_selected && app.selected_index == item_index;
-                                            if is_double_click {
-                                                app.selected_index = item_index;
-                                                app.parent_entry_selected = false;
-                                                app.navigate_into();
-                                            } else if was_selected {
-                                                // Click on already selected item - open it
-                                                app.open_selected_item();
-                                            } else {
-                                                app.selected_index = item_index;
-                                                app.parent_entry_selected = false;
-                                            }
-                                        }
+                                        app.selected_index = 0;
+                                        app.parent_entry_selected = true;
                                     }
                                 } else {
-                                    if relative_row < children_count {
-                                        let was_selected = !app.parent_entry_selected && app.selected_index == relative_row;
+                                    let item_index = relative_row - 1;
+                                    if item_index < children_count {
+                                        let was_selected = !app.parent_entry_selected && app.selected_index == item_index;
                                         if is_double_click {
-                                            app.selected_index = relative_row;
+                                            app.selected_index = item_index;
                                             app.parent_entry_selected = false;
                                             app.navigate_into();
                                         } else if was_selected {
                                             // Click on already selected item - open it
                                             app.open_selected_item();
                                         } else {
-                                            app.selected_index = relative_row;
+                                            app.selected_index = item_index;
                                             app.parent_entry_selected = false;
                                         }
                                     }
+                                }
+                            } else if relative_row < children_count {
+                                let was_selected = !app.parent_entry_selected && app.selected_index == relative_row;
+                                if is_double_click {
+                                    app.selected_index = relative_row;
+                                    app.parent_entry_selected = false;
+                                    app.navigate_into();
+                                } else if was_selected {
+                                    // Click on already selected item - open it
+                                    app.open_selected_item();
+                                } else {
+                                    app.selected_index = relative_row;
+                                    app.parent_entry_selected = false;
                                 }
                             }
                         }
@@ -558,15 +545,13 @@ fn handle_mouse_event(
                 }
             }
         }
-        MouseEventKind::Down(MouseButton::Right) => {
+        MouseEventKind::Down(MouseButton::Right)
             // Right click to toggle selection for deletion
-            if row >= content_start && row < content_end {
-                if matches!(app.mode, AppMode::Scanning | AppMode::Browsing) {
-                    if !app.config.read_only {
-                        app.toggle_selection();
-                    }
-                }
-            }
+            if row >= content_start && row < content_end
+                && matches!(app.mode, AppMode::Scanning | AppMode::Browsing)
+                && !app.config.read_only =>
+        {
+            app.toggle_selection();
         }
         MouseEventKind::ScrollUp => {
             match app.mode {

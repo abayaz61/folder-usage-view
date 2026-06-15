@@ -193,10 +193,12 @@ dua --path . --duplicates-output duplicates.md --duplicates-min-kb 4
 ### TUI Shortcuts
 
 - `p` rapor popup menüsünü açar.
-- `x` mevcut tarama icin `.dua-reports/snapshot.json` dosyasini uretir.
-- `f` mevcut tarama icin `.dua-reports/cleanup.md` dosyasini uretir.
-- `u` mevcut tarama icin `.dua-reports/duplicates.md` dosyasini uretir.
+- `x` mevcut tarama için uygulama veri dizinine `reports/snapshot.json` dosyasini uretir.
+- `f` mevcut tarama için `reports/cleanup.md` dosyasini uretir.
+- `u` mevcut tarama için `reports/duplicates.md` dosyasini uretir.
 - `p` ile acilan popup uzerinden de bu raporlar secilebilir.
+- Raporlar taranan klasöre değil, uygulama ayar dizinine yazılır
+  (`%APPDATA%\folder-usage-view\reports` Windows, `~/.config/folder-usage-view/reports` Linux/macOS).
 - Bu kisayollar footer uzerinden de tiklanabilir.
 
 ## Keyboard Shortcuts

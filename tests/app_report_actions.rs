@@ -18,13 +18,13 @@ fn build_scanned_app(root: &std::path::Path) -> App {
     fs::write(folder.join("b.bin"), b"same-content").unwrap();
     fs::write(root.join("main.log"), vec![b'x'; 2048]).unwrap();
 
-    app.tree.insert_entry(&folder, root, 0, true);
+    app.tree.insert_entry(&folder, root, 0, true, None);
     app.tree
-        .insert_entry(&folder.join("a.bin"), &folder, 12, false);
+        .insert_entry(&folder.join("a.bin"), &folder, 12, false, None);
     app.tree
-        .insert_entry(&folder.join("b.bin"), &folder, 12, false);
+        .insert_entry(&folder.join("b.bin"), &folder, 12, false, None);
     app.tree
-        .insert_entry(&root.join("main.log"), root, 2048, false);
+        .insert_entry(&root.join("main.log"), root, 2048, false, None);
 
     app.scan_result = Some(ScanResult {
         total_files: 3,
@@ -54,7 +54,7 @@ fn app_exports_snapshot_report_to_default_reports_folder() {
     let output = app.export_snapshot_report().unwrap();
 
     assert!(output.exists());
-    assert!(output.ends_with(".dua-reports\\snapshot.json") || output.ends_with(".dua-reports/snapshot.json"));
+    assert!(output.ends_with("reports\\snapshot.json") || output.ends_with("reports/snapshot.json"));
     assert!(app.message.as_deref().unwrap_or_default().contains("snapshot"));
     let _ = fs::remove_dir_all(temp_dir);
 }
@@ -68,7 +68,7 @@ fn app_exports_cleanup_report_to_default_reports_folder() {
     let output = app.export_cleanup_report(1).unwrap();
 
     assert!(output.exists());
-    assert!(output.ends_with(".dua-reports\\cleanup.md") || output.ends_with(".dua-reports/cleanup.md"));
+    assert!(output.ends_with("reports\\cleanup.md") || output.ends_with("reports/cleanup.md"));
     assert!(app.message.as_deref().unwrap_or_default().contains("cleanup"));
     let _ = fs::remove_dir_all(temp_dir);
 }
@@ -82,7 +82,7 @@ fn app_exports_duplicate_report_to_default_reports_folder() {
     let output = app.export_duplicate_report(1).unwrap();
 
     assert!(output.exists());
-    assert!(output.ends_with(".dua-reports\\duplicates.md") || output.ends_with(".dua-reports/duplicates.md"));
+    assert!(output.ends_with("reports\\duplicates.md") || output.ends_with("reports/duplicates.md"));
     assert!(app.message.as_deref().unwrap_or_default().contains("duplicate"));
     let _ = fs::remove_dir_all(temp_dir);
 }

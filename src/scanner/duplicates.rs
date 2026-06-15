@@ -5,6 +5,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use jwalk::WalkDir;
+use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use super::ignore::IgnoreMatcher;
@@ -49,16 +50,33 @@ pub fn find_duplicate_files(
             .push(path.display().to_string());
     }
 
-    let mut hashed_groups: HashMap<(u64, String), Vec<String>> = HashMap::new();
-    for (size, files) in candidates {
-        if files.len() < 2 {
-            continue;
-        }
+    // Only groups with more than one file of the same size can contain duplicates.
+    let size_groups: Vec<(u64, Vec<String>)> = candidates
+        .into_iter()
+        .filter(|(_, files)| files.len() > 1)
+        .collect();
 
-        for path in files {
-            let hash = hash_file(Path::new(&path))?;
-            hashed_groups.entry((size, hash)).or_default().push(path);
-        }
+    // Hash files in parallel (rayon). Files that fail to hash are skipped rather
+    // than aborting the whole report.
+    let hashed: Vec<(u64, String, String)> = size_groups
+        .into_par_iter()
+        .flat_map(|(size, files)| {
+            files
+                .into_par_iter()
+                .filter_map(|path| {
+                    let hash = hash_file(Path::new(&path)).ok()?;
+                    Some((size, hash, path))
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    let mut hashed_groups: HashMap<(u64, String), Vec<String>> = HashMap::new();
+    for (size, hash, path) in hashed {
+        hashed_groups
+            .entry((size, hash))
+            .or_default()
+            .push(path);
     }
 
     let mut groups = Vec::new();
@@ -74,7 +92,7 @@ pub fn find_duplicate_files(
         });
     }
 
-    groups.sort_by(|a, b| b.wasted_bytes.cmp(&a.wasted_bytes));
+    groups.sort_by_key(|b| std::cmp::Reverse(b.wasted_bytes));
     Ok(groups)
 }
 

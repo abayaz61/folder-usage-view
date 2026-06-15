@@ -1,6 +1,7 @@
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use super::node::{FileCategory, NodeId, TreeNode};
 use super::statistics::TreeStatistics;
@@ -64,6 +65,7 @@ impl FileTree {
         parent_path: &Path,
         size: u64,
         is_dir: bool,
+        modified: Option<SystemTime>,
     ) -> Option<NodeId> {
         let parent_id = self.path_index.get(parent_path).copied()?;
 
@@ -75,6 +77,16 @@ impl FileTree {
                     let old_size = node.size;
                     let size_diff = size as i64 - old_size as i64;
                     node.size = size;
+
+                    // Fill metadata if missing (populate_children_from_fs nodes lack it)
+                    if node.metadata.is_none() {
+                        node.metadata = Some(super::node::NodeMetadata {
+                            modified,
+                            created: None,
+                            accessed: None,
+                            is_symlink: false,
+                        });
+                    }
 
                     // Update statistics
                     let category = node.category();
@@ -114,6 +126,16 @@ impl FileTree {
             self.path_index.insert(entry_path.clone(), id);
             self.node_paths.insert(id, entry_path);
 
+            // Attach metadata (modified time)
+            if let Some(n) = self.arena.get_mut(id) {
+                n.metadata = Some(super::node::NodeMetadata {
+                    modified,
+                    created: None,
+                    accessed: None,
+                    is_symlink: false,
+                });
+            }
+
             // Add to parent
             if let Some(parent) = self.arena.get_mut(parent_id) {
                 parent.children.push(id);
@@ -133,6 +155,16 @@ impl FileTree {
         self.path_index.insert(entry_path.clone(), id);
         self.node_paths.insert(id, entry_path);
 
+        // Attach metadata (modified time) for directories too
+        if let Some(n) = self.arena.get_mut(id) {
+            n.metadata = Some(super::node::NodeMetadata {
+                modified,
+                created: None,
+                accessed: None,
+                is_symlink: false,
+            });
+        }
+
         // Add to parent
         if let Some(parent) = self.arena.get_mut(parent_id) {
             parent.children.push(id);
@@ -142,17 +174,12 @@ impl FileTree {
     }
 
     fn propagate_size(&mut self, mut current: NodeId, size: u64) {
-        loop {
-            if let Some(node) = self.arena.get_mut(current) {
-                node.size += size;
-                node.item_count += 1;
-                if let Some(parent) = node.parent {
-                    current = parent;
-                } else {
-                    break;
-                }
-            } else {
-                break;
+        while let Some(node) = self.arena.get_mut(current) {
+            node.size += size;
+            node.item_count += 1;
+            match node.parent {
+                Some(parent) => current = parent,
+                None => break,
             }
         }
     }
@@ -171,7 +198,7 @@ impl FileTree {
 
     pub fn get_children_sorted_by_size(&self, id: NodeId) -> Vec<(NodeId, &TreeNode)> {
         let mut children = self.get_children(id);
-        children.sort_by(|a, b| b.1.size.cmp(&a.1.size));
+        children.sort_by_key(|b| std::cmp::Reverse(b.1.size));
         children
     }
 
@@ -179,10 +206,10 @@ impl FileTree {
         let mut children = self.get_children(id);
         match sort_mode {
             SortMode::Size => {
-                children.sort_by(|a, b| b.1.size.cmp(&a.1.size));
+                children.sort_by_key(|b| std::cmp::Reverse(b.1.size));
             }
             SortMode::Name => {
-                children.sort_by(|a, b| a.1.name.to_lowercase().cmp(&b.1.name.to_lowercase()));
+                children.sort_by_key(|a| a.1.name.to_lowercase());
             }
             SortMode::Type => {
                 children.sort_by(|a, b| {
@@ -346,14 +373,23 @@ impl FileTree {
             let node = if is_dir {
                 TreeNode::new_directory(name.clone(), Some(id), depth)
             } else {
-                // Get file size
-                let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                // Get file size and modified time
+                let metadata = entry.metadata();
+                let size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+                let modified = metadata.ok().and_then(|m| m.modified().ok());
                 let ext = entry_path
                     .extension()
                     .map(|s| s.to_string_lossy().to_string())
                     .unwrap_or_default();
                 let category = FileCategory::from_extension(&ext);
-                TreeNode::new_file(name.clone(), size, Some(id), depth, category)
+                let mut node = TreeNode::new_file(name.clone(), size, Some(id), depth, category);
+                node.metadata = Some(super::node::NodeMetadata {
+                    modified,
+                    created: None,
+                    accessed: None,
+                    is_symlink: false,
+                });
+                node
             };
 
             let child_id = self.arena.insert(node);

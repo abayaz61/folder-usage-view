@@ -25,11 +25,11 @@ fn build_scanned_app(root: &std::path::Path) -> App {
     fs::write(folder.join("a.bin"), b"same-content").unwrap();
     fs::write(folder.join("b.bin"), b"same-content").unwrap();
 
-    app.tree.insert_entry(&folder, root, 0, true);
+    app.tree.insert_entry(&folder, root, 0, true, None);
     app.tree
-        .insert_entry(&folder.join("a.bin"), &folder, 12, false);
+        .insert_entry(&folder.join("a.bin"), &folder, 12, false, None);
     app.tree
-        .insert_entry(&folder.join("b.bin"), &folder, 12, false);
+        .insert_entry(&folder.join("b.bin"), &folder, 12, false, None);
 
     app.scan_result = Some(ScanResult {
         total_files: 2,
@@ -86,7 +86,7 @@ fn reports_popup_executes_selected_action() {
     let output = app.execute_selected_report_action().unwrap();
 
     assert!(output.exists());
-    assert!(output.ends_with(".dua-reports\\duplicates.md") || output.ends_with(".dua-reports/duplicates.md"));
+    assert!(output.ends_with("reports\\duplicates.md") || output.ends_with("reports/duplicates.md"));
     assert_eq!(app.mode, AppMode::Browsing);
 
     let _ = fs::remove_dir_all(temp_dir);

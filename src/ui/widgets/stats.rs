@@ -146,7 +146,7 @@ fn render_categories(app: &App, buf: &mut Buffer, area: Rect) {
 
         // Category name
         let name_style = Style::default().fg(color);
-        buf.set_string(area.x, y, &format!("{:<10}", name), name_style);
+        buf.set_string(area.x, y, format!("{:<10}", name), name_style);
 
         // Bar
         let bar_x = area.x + 11;
@@ -173,7 +173,7 @@ fn render_categories(app: &App, buf: &mut Buffer, area: Rect) {
             buf.set_string(
                 stats_x,
                 y,
-                &format!("{:5.1}%", percentage),
+                format!("{:5.1}%", percentage),
                 Style::default().fg(Color::Yellow),
             );
         }

@@ -248,7 +248,7 @@ impl Widget for ComputerViewWidget<'_> {
 
         let hint = s.get("computer.hint");
         let max_hint_len = title_inner.width.saturating_sub(2) as usize;
-        let truncated_hint = truncate_str(&hint, max_hint_len);
+        let truncated_hint = truncate_str(hint, max_hint_len);
         buf.set_string(
             title_inner.x + 1,
             title_inner.y,
@@ -263,13 +263,13 @@ impl Widget for ComputerViewWidget<'_> {
             buf.set_string(
                 main_layout[1].x + (main_layout[1].width.saturating_sub(msg.len() as u16)) / 2,
                 main_layout[1].y + main_layout[1].height / 2,
-                &msg,
+                msg,
                 Style::default().fg(Color::DarkGray),
             );
         } else {
             // Calculate grid layout (2-3 columns depending on width)
             let cols = if area.width > 120 { 3 } else if area.width > 80 { 2 } else { 1 };
-            let rows = (drive_count + cols - 1) / cols;
+            let rows = drive_count.div_ceil(cols);
 
             let card_height = 7u16; // Height per drive card
             let available_height = main_layout[1].height;

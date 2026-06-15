@@ -263,9 +263,23 @@ pub fn unregister_context_menu() -> Result<(), String> {
 }
 
 pub fn is_path_registered() -> bool {
+    // Check whether the install directory actually appears in the system PATH
+    // (not just whether the executable exists on disk).
     let install_path = get_install_path();
-    let exe_path = install_path.join("dua.exe");
-    exe_path.exists()
+    let install_str = install_path.to_string_lossy().to_lowercase();
+
+    let path_var = match std::env::var_os("PATH") {
+        Some(v) => v,
+        None => return false,
+    };
+
+    // Compare case-insensitively on Windows. Match the full segment so that
+    // e.g. "FolderUsageView" doesn't accidentally match "OldFolderUsageView".
+    path_var
+        .to_string_lossy()
+        .split(';')
+        .map(|p| p.trim().to_lowercase())
+        .any(|segment| segment == install_str)
 }
 
 pub fn register_to_path() -> Result<(), String> {
@@ -658,30 +672,12 @@ pub fn get_console_font() -> (String, u16) {
     }
 }
 
-/// Write a debug line to a log file next to the executable.
-fn debug_log(msg: &str) {
-    use std::io::Write;
-    let path = std::env::temp_dir().join("dua_font_debug.log");
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = writeln!(f, "[{}] {}", chrono::Local::now().format("%H:%M:%S%.3f"), msg);
-    }
-}
-
 /// Set the console font name and size.
 /// Routes to Windows Terminal settings or legacy console API depending on the host.
 pub fn set_console_font(name: &str, size: u16) -> Result<(), String> {
-    debug_log(&format!("set_console_font called: name={}, size={}", name, size));
-    debug_log(&format!("WT_SESSION={:?}", std::env::var("WT_SESSION")));
-    debug_log(&format!("is_windows_terminal={}", is_windows_terminal()));
-
     if is_windows_terminal() {
-        debug_log("Taking WT path (active profile)");
-        let r = set_wt_font(name, size);
-        debug_log(&format!("set_wt_font result: {:?}", r));
-        return r;
+        return set_wt_font(name, size);
     }
-
-    debug_log("Taking conhost path");
 
     use windows::Win32::System::Console::*;
 

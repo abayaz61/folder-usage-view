@@ -38,7 +38,7 @@ impl Widget for DriveListWidget<'_> {
             buf.set_string(
                 inner.x + (inner.width.saturating_sub(msg.len() as u16)) / 2,
                 inner.y + inner.height / 2,
-                &msg,
+                msg,
                 Style::default().fg(Color::DarkGray),
             );
             return;

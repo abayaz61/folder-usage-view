@@ -73,11 +73,15 @@ impl ParallelScanner {
                     }
                     let is_dir = entry.file_type().is_dir();
 
-                    // Get file size
-                    let size = if is_dir {
-                        0
-                    } else {
-                        entry.metadata().map(|m| m.len()).unwrap_or(0)
+                    // Get file size and modified time
+                    let metadata = entry.metadata();
+                    let (size, modified) = match &metadata {
+                        Ok(m) => {
+                            let size = if is_dir { 0 } else { m.len() };
+                            let modified = m.modified().ok();
+                            (size, modified)
+                        }
+                        Err(_) => (0u64, None),
                     };
 
                     // Update counters
@@ -97,6 +101,7 @@ impl ParallelScanner {
                         parent_path,
                         size,
                         is_dir,
+                        modified,
                     };
 
                     if tx.send(ScanMessage::Entry(scanned)).is_err() {

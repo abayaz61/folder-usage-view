@@ -45,7 +45,7 @@ impl Widget for TreemapWidget<'_> {
             let msg = s.get("filelist.empty");
             let x = inner.x + (inner.width.saturating_sub(msg.len() as u16)) / 2;
             let y = inner.y + inner.height / 2;
-            buf.set_string(x, y, &msg, Style::default().fg(Color::DarkGray));
+            buf.set_string(x, y, msg, Style::default().fg(Color::DarkGray));
             return;
         }
 

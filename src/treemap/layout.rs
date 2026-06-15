@@ -23,7 +23,7 @@ impl TreemapLayout {
 
         // Sort by size descending
         let mut sorted_items: Vec<_> = items.to_vec();
-        sorted_items.sort_by(|a, b| b.1.cmp(&a.1));
+        sorted_items.sort_by_key(|b| std::cmp::Reverse(b.1));
 
         let mut result = Vec::with_capacity(items.len());
         self.squarify(&sorted_items, bounds, total_size as f64, &mut result);

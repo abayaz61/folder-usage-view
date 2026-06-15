@@ -26,11 +26,11 @@ impl TreeStatistics {
         const TOP_N: usize = 100;
         if self.largest_files.len() < TOP_N {
             self.largest_files.push((size, node_id, name));
-            self.largest_files.sort_by(|a, b| b.0.cmp(&a.0));
+            self.largest_files.sort_by_key(|b| std::cmp::Reverse(b.0));
         } else if size > self.largest_files.last().map(|x| x.0).unwrap_or(0) {
             self.largest_files.pop();
             self.largest_files.push((size, node_id, name));
-            self.largest_files.sort_by(|a, b| b.0.cmp(&a.0));
+            self.largest_files.sort_by_key(|b| std::cmp::Reverse(b.0));
         }
     }
 
@@ -52,7 +52,7 @@ impl TreeStatistics {
             })
             .collect();
 
-        result.sort_by(|a, b| b.2.cmp(&a.2));
+        result.sort_by_key(|b| std::cmp::Reverse(b.2));
         result
     }
 }

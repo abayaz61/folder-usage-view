@@ -8,17 +8,12 @@ use crate::util::i18n::Language;
 const APP_NAME: &str = "folder-usage-view";
 const SETTINGS_FILE: &str = "settings.json";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum StartupLocation {
+    #[default]
     LastLocation,
     CurrentFolder,
     ComputerView,
-}
-
-impl Default for StartupLocation {
-    fn default() -> Self {
-        StartupLocation::LastLocation
-    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -81,7 +76,9 @@ impl Default for Settings {
 }
 
 impl Settings {
-    fn get_config_dir() -> Option<PathBuf> {
+    /// Platform-specific config directory for the app (where settings.json and reports live).
+    /// `%APPDATA%\folder-usage-view` on Windows, `~/.config/folder-usage-view` on Linux/macOS.
+    pub fn get_config_dir() -> Option<PathBuf> {
         #[cfg(windows)]
         {
             std::env::var("APPDATA")
@@ -115,7 +112,7 @@ impl Settings {
             fs::create_dir_all(&config_dir)?;
             let settings_path = config_dir.join(SETTINGS_FILE);
             let content = serde_json::to_string_pretty(self)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                .map_err(std::io::Error::other)?;
             fs::write(settings_path, content)?;
         }
         Ok(())

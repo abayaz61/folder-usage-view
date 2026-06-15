@@ -1,5 +1,5 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 
@@ -159,7 +159,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Determine initial path based on settings
-    let requested_path = if args.path == PathBuf::from(".") {
+    let requested_path = if args.path == Path::new(".") {
         match settings.startup_location {
             StartupLocation::LastLocation => {
                 load_last_location().unwrap_or_else(|| {
@@ -212,18 +212,20 @@ fn main() -> anyhow::Result<()> {
     ratatui::restore();
 
     // Handle admin restart if needed
-    if let Ok((true, _, _, _, _, _)) = &result {
-        let current_settings = Settings::load();
-        if current_settings.run_as_admin && !args.elevated && !settings_windows::is_running_as_admin() {
-            let _ = settings_windows::relaunch_as_admin_with_flag();
-            return Ok(());
+    if let Ok(outcome) = &result {
+        if outcome.should_check_admin_restart {
+            let current_settings = Settings::load();
+            if current_settings.run_as_admin && !args.elevated && !settings_windows::is_running_as_admin() {
+                let _ = settings_windows::relaunch_as_admin_with_flag();
+                return Ok(());
+            }
         }
     }
 
     // Return result or print final stats
     match result {
-        Ok((_, final_scan_result, exported_path, compare_output, large_files_output, duplicates_output)) => {
-            if let Some(scan_result) = final_scan_result {
+        Ok(outcome) => {
+            if let Some(scan_result) = outcome.final_scan_result {
                 println!("\nScan completed:");
                 println!(
                     "  Total size: {}",
@@ -235,16 +237,16 @@ fn main() -> anyhow::Result<()> {
                 if scan_result.error_count > 0 {
                     println!("  Errors: {}", scan_result.error_count);
                 }
-                if let Some(exported_path) = exported_path {
+                if let Some(exported_path) = outcome.exported_report_path {
                     println!("  Exported report: {}", exported_path.display());
                 }
-                if let Some(compare_output) = compare_output {
+                if let Some(compare_output) = outcome.compare_report_path {
                     println!("  Compare report: {}", compare_output.display());
                 }
-                if let Some(large_files_output) = large_files_output {
+                if let Some(large_files_output) = outcome.large_files_report_path {
                     println!("  Large files report: {}", large_files_output.display());
                 }
-                if let Some(duplicates_output) = duplicates_output {
+                if let Some(duplicates_output) = outcome.duplicates_report_path {
                     println!("  Duplicates report: {}", duplicates_output.display());
                 }
             }
@@ -254,21 +256,26 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
-/// Main application loop - returns (should_check_admin_restart, final_scan_result, exported_report_path, compare_report_path, large_files_report_path, duplicates_report_path)
+/// Outcome of `run_main_loop`. Carries everything the CLI epilogue needs to
+/// print final stats and decide whether to relaunch elevated.
+struct FinalOutcome {
+    /// Whether the settings asked for an admin/root restart on quit.
+    should_check_admin_restart: bool,
+    final_scan_result: Option<disk_usage_analyzer::scanner::ScanResult>,
+    exported_report_path: Option<PathBuf>,
+    compare_report_path: Option<PathBuf>,
+    large_files_report_path: Option<PathBuf>,
+    duplicates_report_path: Option<PathBuf>,
+}
+
+/// Main application loop
 fn run_main_loop(
     terminal: &mut DefaultTerminal,
     args: &Args,
     settings: &Settings,
     mut target_path: PathBuf,
     start_in_computer_view: bool,
-) -> anyhow::Result<(
-    bool,
-    Option<disk_usage_analyzer::scanner::ScanResult>,
-    Option<PathBuf>,
-    Option<PathBuf>,
-    Option<PathBuf>,
-    Option<PathBuf>,
-)> {
+) -> anyhow::Result<FinalOutcome> {
     let mut final_scan_result: Option<disk_usage_analyzer::scanner::ScanResult>;
     let mut first_run = true;
     let parsed_ignore_presets = args
@@ -306,7 +313,14 @@ fn run_main_loop(
                     continue;
                 }
                 Ok(None) => {
-                    return Ok((false, None, None, None, None, None));
+                    return Ok(FinalOutcome {
+                        should_check_admin_restart: false,
+                        final_scan_result: None,
+                        exported_report_path: None,
+                        compare_report_path: None,
+                        large_files_report_path: None,
+                        duplicates_report_path: None,
+                    });
                 }
                 Err(e) => {
                     return Err(e.into());
@@ -403,14 +417,14 @@ fn run_main_loop(
                 } else {
                     None
                 };
-                return Ok((
-                    true,
+                return Ok(FinalOutcome {
+                    should_check_admin_restart: true,
                     final_scan_result,
-                    exported_path,
-                    compare_output,
-                    large_files_output,
-                    duplicates_output,
-                ));
+                    exported_report_path: exported_path,
+                    compare_report_path: compare_output,
+                    large_files_report_path: large_files_output,
+                    duplicates_report_path: duplicates_output,
+                });
             }
             Err(e) => {
                 return Err(e.into());

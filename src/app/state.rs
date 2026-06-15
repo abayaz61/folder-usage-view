@@ -216,17 +216,29 @@ impl App {
     }
 
     pub fn process_scan_messages(&mut self) {
+        // Cap the number of Entry messages processed per tick so a huge scan
+        // can't freeze the UI thread. Progress/Completed/Error are always
+        // processed (cheap, and drive the UI state machine). Remaining Entry
+        // messages stay in the unbounded channel and resume next tick; tree
+        // insertion dedupes by path so there is no correctness risk.
+        const MAX_ENTRIES_PER_TICK: usize = 2_000;
+
         if let Some(rx) = &self.scan_rx {
-            // Process all pending messages
+            let mut entries_processed = 0usize;
             while let Ok(msg) = rx.try_recv() {
                 match msg {
                     ScanMessage::Entry(entry) => {
+                        if entries_processed >= MAX_ENTRIES_PER_TICK {
+                            continue;
+                        }
                         self.tree.insert_entry(
                             &entry.path,
                             &entry.parent_path,
                             entry.size,
                             entry.is_dir,
+                            entry.modified,
                         );
+                        entries_processed += 1;
                     }
                     ScanMessage::Progress(progress) => {
                         self.scan_progress = Some(progress);
@@ -674,9 +686,7 @@ impl App {
 
     /// Move a file or directory to the Recycle Bin/Trash (cross-platform)
     fn move_to_trash(path: &PathBuf) -> Result<(), std::io::Error> {
-        trash::delete(path).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::Other, format!("Trash error: {}", e))
-        })
+        trash::delete(path).map_err(|e| std::io::Error::other(format!("Trash error: {}", e)))
     }
 
     pub fn toggle_help(&mut self) {
@@ -856,7 +866,12 @@ impl App {
     }
 
     fn reports_dir(&self) -> PathBuf {
-        self.config.target_path.join(".dua-reports")
+        use super::settings::Settings;
+        // Store reports in the app config dir (next to settings.json) so scanning a
+        // read-only path or re-scanning doesn't fail or pollute the scanned tree.
+        Settings::get_config_dir()
+            .map(|dir| dir.join("reports"))
+            .unwrap_or_else(|| std::path::PathBuf::from(".dua-reports"))
     }
 
     // About methods
