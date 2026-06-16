@@ -32,6 +32,8 @@ pub struct SettingsCache {
     pub current_font_name: String,
     pub current_font_size: u16,
     pub available_fonts: Vec<String>,
+    /// Whether this app is currently in Defender's exclusion list (Windows).
+    pub av_exclusion_active: bool,
 }
 
 impl SettingsCache {
@@ -50,6 +52,7 @@ impl SettingsCache {
             current_font_name: font_name,
             current_font_size: font_size,
             available_fonts: windows::get_available_fonts(),
+            av_exclusion_active: windows::is_av_exclusion_active(),
         }
     }
 }
@@ -219,7 +222,33 @@ impl App {
         Icons::new(self.settings.use_ascii_icons)
     }
 
+    /// Start a new scan of `config.target_path`.
+    ///
+    /// Fully resets the UI-thread scan state so the same `App` can be reused
+    /// across rescans (navigating to a new drive/folder) without recreating it.
+    /// The scanner thread itself is fully decoupled (it only holds the returned
+    /// `tx`, a `cancel_flag` clone, and primitives), so clearing the tree here
+    /// is safe even if a previous scan's thread is still winding down — it will
+    /// find `cancel_flag == true` (Cancel mode) or simply finish and send its
+    /// messages to a now-unused channel.
     pub fn start_scan(&mut self) -> Sender<ScanMessage> {
+        // --- Reset all scan-related UI state (was previously only correct on
+        //     a freshly-constructed App via App::new). ---
+        // Clear the tree so stale nodes from the previous scan don't linger.
+        // `set_root` does NOT wipe existing contents, so we must clear first.
+        self.tree.clear();
+        // A previous Cancel-mode rescan left cancel_flag == true; the old scan
+        // used it, but this is a fresh scan, so reset it so the new thread runs.
+        self.cancel_flag.store(false, Ordering::Relaxed);
+        self.scan_progress = None;
+        self.scan_result = None;
+        self.navigation_stack.clear();
+        self.selected_index = 0;
+        self.parent_entry_selected = false;
+        self.last_scan_time = None;
+        self.message = None;
+        // children_cache auto-invalidates via the version bump in tree.clear().
+
         let (tx, rx) = crossbeam_channel::unbounded();
         self.scan_rx = Some(rx);
         self.mode = AppMode::Scanning;
@@ -996,7 +1025,7 @@ impl App {
     }
 
     pub fn move_settings_selection(&mut self, delta: i32) {
-        const SETTINGS_COUNT: usize = 15; // Number of settings options
+        const SETTINGS_COUNT: usize = 16; // Number of settings options
         let new_index = (self.settings_selected_index as i32 + delta).rem_euclid(SETTINGS_COUNT as i32) as usize;
         self.settings_selected_index = new_index;
     }
@@ -1197,6 +1226,51 @@ impl App {
                 };
                 self.message = Some(format!("Scan conflict: {}", label));
             }
+            #[cfg(target_os = "windows")]
+            15 => {
+                // Toggle Windows Defender process exclusion for this app.
+                // Add-MpPreference / Remove-MpPreference both require admin
+                // privileges, so we elevate via the same restart plumbing as
+                // "Run as admin". If the user declines UAC, main.rs resets the
+                // toggle and the app continues normally.
+                let enabling = !self.settings.av_exclusion_enabled;
+                let is_admin = windows::is_running_as_admin();
+                if is_admin {
+                    // Already elevated: apply immediately.
+                    let result = if enabling {
+                        windows::add_av_exclusion()
+                    } else {
+                        windows::remove_av_exclusion()
+                    };
+                    match result {
+                        Ok(()) => {
+                            self.settings.av_exclusion_enabled = enabling;
+                            self.settings_cache.av_exclusion_active = enabling;
+                            self.message = Some(if enabling {
+                                "Added to Windows Defender exclusions".to_string()
+                            } else {
+                                "Removed from Windows Defender exclusions".to_string()
+                            });
+                        }
+                        Err(e) => {
+                            // Keep previous state; surface the error.
+                            self.message = Some(format!("Error: {}", e));
+                        }
+                    }
+                } else {
+                    // Not elevated: persist the desired toggle state, then request
+                    // an admin restart. After restart, main.rs reconciles the real
+                    // Defender state (see main.rs elevated-but-not-admin reset).
+                    self.settings.av_exclusion_enabled = enabling;
+                    self.message = Some(if enabling {
+                        "Restart as admin to apply Defender exclusion".to_string()
+                    } else {
+                        "Restart as admin to remove Defender exclusion".to_string()
+                    });
+                    let _ = self.settings.save();
+                    self.pending_admin_restart = true;
+                }
+            }
             _ => {}
         }
         // Save settings after change (except font — font saves on close_settings)
@@ -1215,6 +1289,13 @@ impl App {
             4 => {
                 self.settings_cache.desktop_shortcut_exists = windows::is_desktop_shortcut_exists();
                 self.settings_cache.desktop_path = windows::get_desktop_path().display().to_string();
+            }
+            #[cfg(target_os = "windows")]
+            // Only refresh when applied directly (admin). When a restart was
+            // requested, the cache will be repopulated from settings on the
+            // next session; avoid a second Defender query here.
+            15 if !self.pending_admin_restart => {
+                self.settings_cache.av_exclusion_active = windows::is_av_exclusion_active();
             }
             _ => {} // Font, language, palette etc. read directly from self.settings
         }

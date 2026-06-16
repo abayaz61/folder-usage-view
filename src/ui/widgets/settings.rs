@@ -319,6 +319,30 @@ impl Widget for SettingsWidget<'_> {
             true,
         ));
 
+        // Antivirus exclusion option (Windows only)
+        #[cfg(target_os = "windows")]
+        {
+            // Reflect the real Defender state when applied; otherwise the
+            // pending toggle state from settings.
+            let active = if self.app.settings_cache.av_exclusion_active {
+                true
+            } else {
+                self.app.settings.av_exclusion_enabled
+            };
+            let av_value = if active {
+                s.get("settings.av_exclusion_on")
+            } else {
+                s.get("settings.av_exclusion_off")
+            };
+            lines.extend(self.render_option(
+                15,
+                s.get("settings.av_exclusion"),
+                av_value,
+                s.get("settings.av_exclusion_desc"),
+                true,
+            ));
+        }
+
         // Footer
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(

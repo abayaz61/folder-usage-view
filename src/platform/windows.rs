@@ -126,6 +126,106 @@ pub fn relaunch_as_admin_with_flag() -> Result<(), String> {
     Ok(())
 }
 
+/// The current executable's file name (e.g. `disk-usage-analyzer.exe`), used as
+/// the Defender process-exclusion key. Returns the full path if a file name
+/// can't be determined — `Add-MpPreference -ExclusionProcess` accepts either.
+fn exe_name_or_path() -> Result<String, String> {
+    let exe = super::get_exe_path().ok_or("Could not get executable path")?;
+    Ok(exe
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| exe.to_string_lossy().into_owned()))
+}
+
+/// Add this app to Windows Defender's process-exclusion list so its file
+/// traversal isn't slowed by real-time scanning. Requires admin privileges.
+pub fn add_av_exclusion() -> Result<(), String> {
+    let target = exe_name_or_path()?;
+    // Single-quote-escape per PowerShell rules (double the quote).
+    let escaped = target.replace('\'', "''");
+    let script = format!("Add-MpPreference -ExclusionProcess '{}'", escaped);
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "Defender exclusion could not be added. {}{}",
+            stderr.trim(),
+            if stdout.trim().is_empty() {
+                String::new()
+            } else {
+                format!(" {}", stdout.trim())
+            }
+        ));
+    }
+    Ok(())
+}
+
+/// Remove this app from Windows Defender's process-exclusion list.
+/// Requires admin privileges.
+pub fn remove_av_exclusion() -> Result<(), String> {
+    let target = exe_name_or_path()?;
+    let escaped = target.replace('\'', "''");
+    let script = format!("Remove-MpPreference -ExclusionProcess '{}'", escaped);
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "Defender exclusion could not be removed. {}{}",
+            stderr.trim(),
+            if stdout.trim().is_empty() {
+                String::new()
+            } else {
+                format!(" {}", stdout.trim())
+            }
+        ));
+    }
+    Ok(())
+}
+
+/// Check whether this app is currently in Defender's process-exclusion list.
+/// Returns false on any error (treat as "not excluded"). Does not require admin.
+pub fn is_av_exclusion_active() -> bool {
+    let target = match exe_name_or_path() {
+        Ok(t) => t,
+        Err(_) => return false,
+    };
+    // Lowercase comparison for robustness; Defender stores exclusion entries
+    // verbatim but matching is case-insensitive on Windows.
+    let needle = target.to_lowercase();
+    let script = "Get-MpPreference | Select-Object -ExpandProperty ExclusionProcess";
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+
+    match output {
+        Ok(o) => {
+            let text = String::from_utf8_lossy(&o.stdout).to_lowercase();
+            // Match against both the bare file name and the full path forms.
+            text.lines().any(|line| {
+                let line = line.trim();
+                !line.is_empty() && (line == needle || line.ends_with(&needle))
+            })
+        }
+        Err(_) => false,
+    }
+}
+
 pub fn get_install_path() -> PathBuf {
     let program_files =
         std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());

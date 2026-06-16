@@ -9,14 +9,13 @@ use crossterm::execute;
 use ratatui::DefaultTerminal;
 
 use disk_usage_analyzer::app::{load_last_location, save_last_location, App, Config, Settings, StartupLocation};
-use disk_usage_analyzer::app::settings::{windows as settings_windows, ScanConflict};
+use disk_usage_analyzer::app::settings::windows as settings_windows;
 use disk_usage_analyzer::report::{
-    build_large_file_report, compare_saved_reports, write_large_file_report, write_report,
-    build_duplicate_files_report, write_duplicate_files_report, ExportRequest, ReportFormat,
-    ScanReport,
+    build_duplicate_files_report, build_large_file_report, compare_saved_reports, write_duplicate_files_report,
+    write_large_file_report, write_report, ExportRequest, ReportFormat, ScanReport,
 };
 use disk_usage_analyzer::scanner::{find_duplicate_files, IgnorePreset, ParallelScanner};
-use disk_usage_analyzer::ui::run_app;
+use disk_usage_analyzer::ui::{run_app, RunOutcome, ScanParams};
 
 /// Try to find a valid directory by walking up the path tree
 /// Returns None if no valid directory found (should switch to Computer view)
@@ -141,9 +140,13 @@ fn main() -> anyhow::Result<()> {
     // Safely load settings
     let settings = Settings::load();
 
-    // Check if we need to restart as admin (only if not already attempted)
+    // Check if we need to restart as admin (only if not already attempted).
+    // Covers both "Run as admin" and the AV-exclusion toggle, which needs
+    // admin to call Add-MpPreference.
     let mut settings = settings;
-    if settings.run_as_admin && !args.elevated && !settings_windows::is_running_as_admin() {
+    let needs_admin = (settings.run_as_admin || settings.av_exclusion_enabled)
+        && !settings_windows::is_running_as_admin();
+    if needs_admin && !args.elevated {
         // Restart with admin privileges
         if settings_windows::relaunch_as_admin_with_flag().is_ok() {
             // Exit current instance
@@ -152,10 +155,37 @@ fn main() -> anyhow::Result<()> {
         // If relaunch failed, continue normally
     }
 
-    // If we have --elevated flag but still not admin, user declined UAC - reset the setting
-    if args.elevated && settings.run_as_admin && !settings_windows::is_running_as_admin() {
-        settings.run_as_admin = false;
-        let _ = settings.save();
+    // If we have --elevated flag but still not admin, user declined UAC.
+    // Reset the settings that needed elevation so the app continues normally
+    // instead of silently staying in a "pending admin" state.
+    if args.elevated && !settings_windows::is_running_as_admin() {
+        let mut changed = false;
+        if settings.run_as_admin {
+            settings.run_as_admin = false;
+            changed = true;
+        }
+        if settings.av_exclusion_enabled {
+            settings.av_exclusion_enabled = false;
+            changed = true;
+        }
+        if changed {
+            let _ = settings.save();
+        }
+    }
+
+    // Reconcile AV exclusion with the real Defender state now that we know our
+    // elevation status. If we are admin and the toggle is on but Defender
+    // doesn't actually have the exclusion (e.g. removed externally, or this is
+    // the first elevated run after enabling), apply it. If the toggle is off
+    // but Defender still has it, remove it for consistency.
+    #[cfg(target_os = "windows")]
+    if settings_windows::is_running_as_admin() {
+        let active = settings_windows::is_av_exclusion_active();
+        if settings.av_exclusion_enabled && !active {
+            let _ = settings_windows::add_av_exclusion();
+        } else if !settings.av_exclusion_enabled && active {
+            let _ = settings_windows::remove_av_exclusion();
+        }
     }
 
     // Determine initial path based on settings
@@ -273,78 +303,49 @@ fn run_main_loop(
     terminal: &mut DefaultTerminal,
     args: &Args,
     settings: &Settings,
-    mut target_path: PathBuf,
+    target_path: PathBuf,
     start_in_computer_view: bool,
 ) -> anyhow::Result<FinalOutcome> {
-    let mut final_scan_result: Option<disk_usage_analyzer::scanner::ScanResult>;
-    let mut first_run = true;
-    // Handle of the most recently spawned scanner thread. Kept across loop
-    // iterations so a rescan can wait for (Cancel/Queue) or drop (Parallel)
-    // the previous scan before starting the new one. Initialized to None; the
-    // `unused_assignments` lint flags the initial None because the first loop
-    // iteration overwrites it, but the binding must still start initialized.
-    #[allow(unused_assignments)]
-    let mut scan_handle: Option<std::thread::JoinHandle<()>> = None;
     let parsed_ignore_presets = args
         .ignore_presets
         .iter()
         .map(|value| IgnorePreset::from_cli_value(value))
         .collect::<anyhow::Result<Vec<_>>>()?;
 
-    // Main loop - allows rescanning when navigating to parent directory
-    loop {
-        // Create config - allow delete if either command line arg or settings allow it
-        let allow_delete = args.allow_delete || settings.allow_delete;
-        let config = Config::new(target_path.clone())
-            .with_read_only(!allow_delete)
-            .with_follow_symlinks(args.follow_symlinks)
-            .with_show_hidden(args.show_hidden)
-            .with_ignore_patterns(args.ignore_patterns.clone())
-            .with_ignore_presets(parsed_ignore_presets.clone());
+    // Create config - allow delete if either command line arg or settings allow it
+    let allow_delete = args.allow_delete || settings.allow_delete;
+    let config = Config::new(target_path.clone())
+        .with_read_only(!allow_delete)
+        .with_follow_symlinks(args.follow_symlinks)
+        .with_show_hidden(args.show_hidden)
+        .with_ignore_patterns(args.ignore_patterns.clone())
+        .with_ignore_presets(parsed_ignore_presets);
 
-        // Create app
-        let mut app = App::new(config);
+    // Create a single App that is reused across rescans (run_app now starts
+    // rescans in-place instead of returning to this loop).
+    let mut app = App::new(config);
 
-        // Check if we should start in computer view
-        if first_run && start_in_computer_view {
-            app.open_computer_view();
-            first_run = false;
+    // Scanner thread handle. Managed inside run_app: on a rescan, the old
+    // thread is detached (not joined) so the UI never blocks.
+    let mut scan_handle: Option<std::thread::JoinHandle<()>> = None;
+    let scan_params = ScanParams {
+        follow_symlinks: args.follow_symlinks,
+        show_hidden: args.show_hidden,
+    };
 
-            // Run the app without starting a scan
-            let result = run_app(terminal, &mut app);
-
-            match result {
-                Ok(Some(new_path)) => {
-                    target_path = new_path;
-                    let _ = save_last_location(&target_path);
-                    continue;
-                }
-                Ok(None) => {
-                    return Ok(FinalOutcome {
-                        should_check_admin_restart: false,
-                        final_scan_result: None,
-                        exported_report_path: None,
-                        compare_report_path: None,
-                        large_files_report_path: None,
-                        duplicates_report_path: None,
-                    });
-                }
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        }
-        first_run = false;
-
-        // Start scanner in background thread
+    // Start in computer view (no initial scan) if requested.
+    if start_in_computer_view {
+        app.open_computer_view();
+    } else {
+        // Start the initial scan.
         let tx = app.start_scan();
         let cancel_flag = Arc::clone(&app.cancel_flag);
-        let scanner_path = target_path.clone();
+        let scanner_path = app.config.target_path.clone();
         let follow_symlinks = args.follow_symlinks;
         let show_hidden = args.show_hidden;
         let ignore_matcher = app.config.ignore_matcher();
 
-        let handle = thread::spawn(move || {
+        scan_handle = Some(thread::spawn(move || {
             let scanner = ParallelScanner::new()
                 .follow_symlinks(follow_symlinks)
                 .skip_hidden(!show_hidden)
@@ -353,109 +354,90 @@ fn run_main_loop(
             if let Err(e) = scanner.scan(scanner_path, tx.clone(), cancel_flag) {
                 let _ = tx.send(disk_usage_analyzer::scanner::ScanMessage::Error(e.to_string()));
             }
-        });
-        scan_handle = Some(handle);
+        }));
+    }
 
-        // Run the app
-        let result = run_app(terminal, &mut app);
+    // Run the UI. Rescans are handled inside run_app (UI never freezes).
+    let result = run_app(terminal, &mut app, &mut scan_handle, &scan_params);
 
-        // Store scan result for final output
-        final_scan_result = app.scan_result.take();
+    // Capture the last scan result for final output.
+    let final_scan_result = app.scan_result.take();
 
-        match result {
-            Ok(Some(new_path)) => {
-                // Rescan requested. Wait for the previous scan thread according
-                // to the configured conflict policy:
-                //   Cancel: cancel_flag was already set in trigger_rescan; join
-                //           so the old thread fully unwinds (frees its rayon pool)
-                //           before we spawn the new one.
-                //   Queue:  join and wait for the old scan to finish naturally.
-                //   Parallel: drop the handle (old thread keeps running).
-                match settings.scan_conflict {
-                    ScanConflict::Cancel | ScanConflict::Queue => {
-                        if let Some(handle) = scan_handle.take() {
-                            let _ = handle.join();
-                        }
-                    }
-                    ScanConflict::Parallel => {
-                        // Orphan the old thread: drop the handle without
-                        // joining so it keeps running on its own.
-                        drop(scan_handle.take());
-                    }
-                }
-                // Update target path and continue loop
-                target_path = new_path;
-                // Save location for next session
-                let _ = save_last_location(&target_path);
-                continue;
-            }
-            Ok(None) => {
-                // Normal quit - save current location
-                let _ = save_last_location(&target_path);
-                let exported_path = if let (Some(scan_result), Some(export_path)) =
-                    (final_scan_result.as_ref(), args.export.as_ref())
-                {
-                    let format = ReportFormat::from_cli_value(&args.export_format)?;
-                    let report = ScanReport::from_scan(&target_path, &app.tree, scan_result);
-                    let request = ExportRequest {
-                        output_path: export_path.clone(),
-                        format,
-                    };
-                    write_report(&request, &report)?;
-                    Some(export_path.clone())
-                } else {
-                    None
-                };
-                let compare_output = if let (Some(compare_with), Some(compare_output), Some(exported_path)) =
-                    (&args.compare_with, &args.compare_output, &exported_path)
-                {
-                    let compare = compare_saved_reports(compare_with, exported_path, compare_output)?;
-                    println!("  Compare delta (size): {}", compare.total_size_delta);
-                    Some(compare_output.clone())
-                } else {
-                    None
-                };
-                let large_files_output = if let (Some(scan_result), Some(output_path)) =
-                    (final_scan_result.as_ref(), args.large_files_output.as_ref())
-                {
-                    let threshold_bytes = args.large_file_threshold_mb * 1024 * 1024;
-                    let cleanup_report = build_large_file_report(
-                        &ScanReport::from_scan(&target_path, &app.tree, scan_result),
-                        threshold_bytes,
-                    );
-                    write_large_file_report(output_path, &cleanup_report)?;
-                    Some(output_path.clone())
-                } else {
-                    None
-                };
-                let duplicates_output = if let Some(output_path) = args.duplicates_output.as_ref() {
-                    let min_size = args.duplicates_min_kb * 1024;
-                    let duplicates = find_duplicate_files(
-                        &target_path,
-                        &app.config.ignore_matcher(),
-                        min_size,
-                    )?;
-                    let report = build_duplicate_files_report(
-                        &target_path.display().to_string(),
-                        duplicates,
-                    );
-                    write_duplicate_files_report(output_path, &report)?;
-                    Some(output_path.clone())
-                } else {
-                    None
-                };
-                return Ok(FinalOutcome {
-                    should_check_admin_restart: true,
-                    final_scan_result,
-                    exported_report_path: exported_path,
-                    compare_report_path: compare_output,
-                    large_files_report_path: large_files_output,
-                    duplicates_report_path: duplicates_output,
-                });
-            }
-            Err(e) => {
-                return Err(e.into());
-            }
+    match result {
+        Ok(RunOutcome::AdminRestart) => {
+            Ok(FinalOutcome {
+                should_check_admin_restart: true,
+                final_scan_result,
+                exported_report_path: None,
+                compare_report_path: None,
+                large_files_report_path: None,
+                duplicates_report_path: None,
+            })
         }
+        Ok(RunOutcome::Quit) => {
+            // Normal quit - save current location
+            let _ = save_last_location(&app.config.target_path);
+            let exported_path = if let (Some(scan_result), Some(export_path)) =
+                (final_scan_result.as_ref(), args.export.as_ref())
+            {
+                let format = ReportFormat::from_cli_value(&args.export_format)?;
+                let report = ScanReport::from_scan(&app.config.target_path, &app.tree, scan_result);
+                let request = ExportRequest {
+                    output_path: export_path.clone(),
+                    format,
+                };
+                write_report(&request, &report)?;
+                Some(export_path.clone())
+            } else {
+                None
+            };
+            let compare_output = if let (Some(compare_with), Some(compare_output), Some(exported_path)) =
+                (&args.compare_with, &args.compare_output, &exported_path)
+            {
+                let compare = compare_saved_reports(compare_with, exported_path, compare_output)?;
+                println!("  Compare delta (size): {}", compare.total_size_delta);
+                Some(compare_output.clone())
+            } else {
+                None
+            };
+            let large_files_output = if let (Some(scan_result), Some(output_path)) =
+                (final_scan_result.as_ref(), args.large_files_output.as_ref())
+            {
+                let threshold_bytes = args.large_file_threshold_mb * 1024 * 1024;
+                let cleanup_report = build_large_file_report(
+                    &ScanReport::from_scan(&app.config.target_path, &app.tree, scan_result),
+                    threshold_bytes,
+                );
+                write_large_file_report(output_path, &cleanup_report)?;
+                Some(output_path.clone())
+            } else {
+                None
+            };
+            let duplicates_output = if let Some(output_path) = args.duplicates_output.as_ref() {
+                let min_size = args.duplicates_min_kb * 1024;
+                let duplicates = find_duplicate_files(
+                    &app.config.target_path,
+                    &app.config.ignore_matcher(),
+                    min_size,
+                )?;
+                let report = build_duplicate_files_report(
+                    &app.config.target_path.display().to_string(),
+                    duplicates,
+                );
+                write_duplicate_files_report(output_path, &report)?;
+                Some(output_path.clone())
+            } else {
+                None
+            };
+            Ok(FinalOutcome {
+                should_check_admin_restart: false,
+                final_scan_result,
+                exported_report_path: exported_path,
+                compare_report_path: compare_output,
+                large_files_report_path: large_files_output,
+                duplicates_report_path: duplicates_output,
+            })
+        }
+        Err(e) => Err(e.into()),
     }
 }

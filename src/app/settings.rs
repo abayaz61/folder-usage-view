@@ -65,6 +65,10 @@ pub struct Settings {
     pub font_size: u16,
     #[serde(default)]
     pub scan_conflict: ScanConflict,
+    /// Add this app to Windows Defender's process exclusion list to improve
+    /// scan performance. Windows-only; ignored on other platforms.
+    #[serde(default)]
+    pub av_exclusion_enabled: bool,
 }
 
 fn default_true() -> bool {
@@ -96,6 +100,7 @@ impl Default for Settings {
             font_name: default_font_name(),
             font_size: default_font_size(),
             scan_conflict: ScanConflict::default(),
+            av_exclusion_enabled: false,
         }
     }
 }
@@ -158,6 +163,7 @@ pub mod windows {
         register_to_path, relaunch_as_admin, relaunch_as_admin_with_flag, remove_desktop_shortcut,
         remove_start_menu_shortcut, unregister_context_menu, unregister_from_path,
         get_console_font, set_console_font, get_available_fonts,
+        add_av_exclusion, remove_av_exclusion, is_av_exclusion_active,
     };
 
     #[cfg(target_os = "linux")]
@@ -281,5 +287,17 @@ pub mod windows {
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     pub fn get_desktop_path() -> PathBuf {
         dirs::desktop_dir().unwrap_or_else(|| PathBuf::from("/tmp"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    pub fn add_av_exclusion() -> Result<(), String> {
+        Err("Antivirus exclusion is only supported on Windows".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    pub fn remove_av_exclusion() -> Result<(), String> {
+        Err("Antivirus exclusion is only supported on Windows".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    pub fn is_av_exclusion_active() -> bool {
+        false
     }
 }

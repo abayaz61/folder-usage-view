@@ -210,6 +210,13 @@ impl Strings {
         m.insert("settings.font_size_desc", "Console font size in points");
         m.insert("settings.scan_conflict", "Scan Conflict");
         m.insert("settings.scan_conflict_desc", "What happens when a new scan starts");
+        m.insert("settings.av_exclusion", "Antivirus Exclusion");
+        m.insert("settings.av_exclusion_desc", "Exclude this app from Windows Defender (faster scans)");
+        m.insert("settings.av_exclusion_on", "On");
+        m.insert("settings.av_exclusion_off", "Off");
+        m.insert("settings.av_exclusion_added", "Added to Windows Defender exclusions");
+        m.insert("settings.av_exclusion_removed", "Removed from Windows Defender exclusions");
+        m.insert("settings.av_exclusion_restart", "Restart as admin to apply");
         m.insert("scan_conflict.cancel", "Cancel previous");
         m.insert("scan_conflict.queue", "Wait for previous");
         m.insert("scan_conflict.parallel", "Run in parallel");
@@ -435,6 +442,13 @@ impl Strings {
         m.insert("settings.font_size_desc", "Konsol font boyutu (punto)");
         m.insert("settings.scan_conflict", "Tarama Çakışması");
         m.insert("settings.scan_conflict_desc", "Yeni tarama başlayınca ne olsun");
+        m.insert("settings.av_exclusion", "Antivirüs İstisnası");
+        m.insert("settings.av_exclusion_desc", "Bu uygulamayı Windows Defender'dan hariç tut (daha hızlı tarama)");
+        m.insert("settings.av_exclusion_on", "Açık");
+        m.insert("settings.av_exclusion_off", "Kapalı");
+        m.insert("settings.av_exclusion_added", "Windows Defender istisnalarına eklendi");
+        m.insert("settings.av_exclusion_removed", "Windows Defender istisnalarından kaldırıldı");
+        m.insert("settings.av_exclusion_restart", "Uygulamak için yönetici olarak yeniden başlat");
         m.insert("scan_conflict.cancel", "Öncekini iptal et");
         m.insert("scan_conflict.queue", "Öncekini bekle");
         m.insert("scan_conflict.parallel", "Paralel çalıştır");
