@@ -37,6 +37,19 @@ impl FileTree {
         }
     }
 
+    /// Reset the tree to an empty state, dropping all nodes, indexes, and
+    /// statistics. Used before starting a fresh scan on an existing tree so it
+    /// can be reused across rescans without recreating the `App`.
+    pub fn clear(&mut self) {
+        self.arena.clear();
+        self.root = None;
+        self.path_index.clear();
+        self.node_paths.clear();
+        self.statistics = TreeStatistics::new();
+        self.selected_count = 0;
+        self.version = self.version.wrapping_add(1);
+    }
+
     pub fn set_root(&mut self, path: &Path) -> NodeId {
         let name = path
             .file_name()

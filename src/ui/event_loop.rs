@@ -1,7 +1,10 @@
 use std::io;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use crossbeam_channel::Sender;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind, MouseButton};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -11,13 +14,39 @@ use ratatui::DefaultTerminal;
 
 use crate::app::{App, AppMode, ViewMode};
 use crate::model::get_all_drives;
+use crate::scanner::{ParallelScanner, ScanMessage};
 use crate::ui::widgets::{AboutWidget, ComputerViewWidget, DriveListWidget, ErrorWidget, FileListWidget, HelpWidget, ReportsWidget, SettingsWidget, StatsWidget, TreemapWidget};
 use crate::util::i18n::Strings;
 
 const TICK_RATE: Duration = Duration::from_millis(16); // ~60 FPS
 
-/// Result of run_app: None means quit, Some(path) means rescan with new path
-pub fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<Option<PathBuf>> {
+/// Parameters needed to spawn a scanner thread. Passed into `run_app` so it can
+/// start a new scan (rescan) without tearing down the App or the UI loop.
+#[derive(Clone)]
+pub struct ScanParams {
+    pub follow_symlinks: bool,
+    pub show_hidden: bool,
+}
+
+/// Outcome of `run_app`:
+/// - `Quit`: user wants to exit
+/// - `AdminRestart`: app wants to relaunch with admin privileges
+#[derive(Debug)]
+pub enum RunOutcome {
+    Quit,
+    AdminRestart,
+}
+
+/// Run the application UI loop. Rescans (navigating to a new drive/folder) are
+/// handled **inside** this loop so the UI never freezes waiting for a scan:
+/// the in-flight scanner thread is detached (its `cancel_flag` was already set
+/// in Cancel mode) and a fresh scan is started immediately.
+pub fn run_app(
+    terminal: &mut DefaultTerminal,
+    app: &mut App,
+    scan_handle: &mut Option<JoinHandle<()>>,
+    scan_params: &ScanParams,
+) -> io::Result<RunOutcome> {
     let mut last_tick = Instant::now();
     let mut terminal_width: u16 = 80;
     let mut terminal_height: u16 = 24;
@@ -28,16 +57,22 @@ pub fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<Opti
         // Process scanner messages
         app.process_scan_messages();
 
-        // Check for pending rescan request
+        // Check for pending rescan request. Handle it in-place so the UI keeps
+        // rendering and accepting input while the new scan runs in the
+        // background. The previous scan thread is detached (dropped without
+        // joining): in Cancel mode it stops quickly via cancel_flag; in
+        // Queue/Parallel mode it finishes naturally on its own.
         if let Some(new_path) = app.take_pending_rescan() {
-            return Ok(Some(new_path));
+            start_rescan(app, scan_handle, scan_params, new_path);
+            // Persist the new location for the next session.
+            let _ = crate::app::save_last_location(&app.config.target_path);
         }
 
         // Check for pending admin restart
         if app.pending_admin_restart {
             app.pending_admin_restart = false;
             // The main.rs will handle the actual restart
-            return Ok(None);
+            return Ok(RunOutcome::AdminRestart);
         }
 
         // Render
@@ -80,9 +115,52 @@ pub fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<Opti
         }
 
         if app.should_quit() {
-            return Ok(None);
+            return Ok(RunOutcome::Quit);
         }
     }
+}
+
+/// Start a new scan for `new_path` without interrupting the UI loop.
+///
+/// Detaches the previous scanner thread (drops the `JoinHandle` without
+/// joining so the UI thread never blocks on it), updates the App's target path,
+/// resets scan state, and spawns a fresh background scan. `app.start_scan()`
+/// resets `cancel_flag` to false (Cancel mode had set it to true) so the new
+/// scan actually runs.
+fn start_rescan(
+    app: &mut App,
+    scan_handle: &mut Option<JoinHandle<()>>,
+    scan_params: &ScanParams,
+    new_path: PathBuf,
+) {
+    // Update the target path so start_scan uses it.
+    app.config.target_path = new_path;
+
+    // Detach the previous scan thread: dropping the JoinHandle without joining
+    // lets the old thread unwind on its own (Cancel: stops via cancel_flag;
+    // Queue/Parallel: finishes naturally). The UI never blocks on join().
+    *scan_handle = None;
+
+    // start_scan clears the tree, resets cancel_flag to false, and resets all
+    // scan-related UI state so the App is ready for the new scan.
+    let tx: Sender<ScanMessage> = app.start_scan();
+    let cancel_flag = Arc::clone(&app.cancel_flag);
+    let scanner_path = app.config.target_path.clone();
+    let follow_symlinks = scan_params.follow_symlinks;
+    let show_hidden = scan_params.show_hidden;
+    let ignore_matcher = app.config.ignore_matcher();
+
+    let handle = thread::spawn(move || {
+        let scanner = ParallelScanner::new()
+            .follow_symlinks(follow_symlinks)
+            .skip_hidden(!show_hidden)
+            .with_ignore_matcher(ignore_matcher);
+
+        if let Err(e) = scanner.scan(scanner_path, tx.clone(), cancel_flag) {
+            let _ = tx.send(ScanMessage::Error(e.to_string()));
+        }
+    });
+    *scan_handle = Some(handle);
 }
 
 /// Calculate grid columns for drive view based on width
