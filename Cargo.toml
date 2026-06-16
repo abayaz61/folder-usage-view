@@ -2,7 +2,7 @@
 name = "disk-usage-analyzer"
 version = "1.0.0"
 edition = "2021"
-rust-version = "1.95"
+rust-version = "1.96"
 description = "Ultra high-performance disk usage analyzer with TUI and treemap visualization"
 authors = ["Codegen <abayaz61@gmail.com>"]
 license = "MIT"
