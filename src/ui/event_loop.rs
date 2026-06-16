@@ -762,7 +762,7 @@ fn render_main_view(frame: &mut ratatui::Frame, app: &App, area: Rect) {
                 .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
                 .split(area);
 
-            let file_list = FileListWidget::new(app);
+            let file_list = FileListWidget::new(app).show_bar(true);
             frame.render_widget(file_list, layout[0]);
 
             let stats = StatsWidget::new(app);

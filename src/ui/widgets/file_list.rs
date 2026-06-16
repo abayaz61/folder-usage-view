@@ -9,11 +9,65 @@ use crate::util::i18n::Strings;
 
 pub struct FileListWidget<'a> {
     app: &'a App,
+    show_bar: bool,
 }
 
 impl<'a> FileListWidget<'a> {
     pub fn new(app: &'a App) -> Self {
-        Self { app }
+        Self { app, show_bar: false }
+    }
+
+    /// Show the mini percentage bar next to the percentage value.
+    /// Used in List mode where the panel is wide enough.
+    pub fn show_bar(mut self, show: bool) -> Self {
+        self.show_bar = show;
+        self
+    }
+}
+
+/// Width of the mini bar in characters. Each cell = 5% (20 cells = 100%).
+const BAR_WIDTH: usize = 20;
+
+/// Build the filled and empty parts of the percentage mini-bar separately so
+/// each can be rendered with a different color (filled = magnitude color,
+/// empty = subtle gray so the bar boundary stays visible on dark backgrounds).
+///
+/// Uses eighth-block partial characters for sub-cell resolution: a 20-cell bar
+/// with 8 sub-units per cell effectively resolves ~0.6% steps.
+fn percentage_bar_parts(percentage: f64) -> (String, String) {
+    let pct = percentage.clamp(0.0, 100.0);
+    // Total sub-units across the whole bar (8 sub-units per cell).
+    let sub_units = pct / 100.0 * (BAR_WIDTH as f64) * 8.0;
+    let full_cells = (sub_units / 8.0).floor() as usize;
+    let remainder = sub_units as usize % 8;
+
+    // Eighth-block characters: index = filled eighths (0 = empty, 8 = full).
+    const PARTIALS: [char; 8] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
+
+    let mut filled = String::new();
+    for _ in 0..full_cells.min(BAR_WIDTH) {
+        filled.push('█');
+    }
+    let has_partial = full_cells < BAR_WIDTH && remainder > 0;
+    if has_partial {
+        filled.push(PARTIALS[remainder]);
+    }
+
+    let filled_len = full_cells.min(BAR_WIDTH) + if has_partial { 1 } else { 0 };
+    let empty = "░".repeat(BAR_WIDTH.saturating_sub(filled_len));
+
+    (filled, empty)
+}
+
+/// Color for the filled portion based on how much of the parent's space the
+/// entry occupies.
+fn bar_color(percentage: f64) -> Color {
+    if percentage >= 60.0 {
+        Color::Red
+    } else if percentage >= 25.0 {
+        Color::Yellow
+    } else {
+        Color::Green
     }
 }
 
@@ -143,7 +197,13 @@ impl Widget for FileListWidget<'_> {
             let pct_str = format!("{:5.1}%", percentage);
 
             // Calculate available width for name
-            let fixed_width = 3 + 3 + 10 + 1 + 7; // mark + icon + size + space + percentage
+            // mark(2) + icon(3) + size(10) + space(1) + percentage(7) [+ bar(11) if shown]
+            // bar = 1 space + BAR_WIDTH(20) = 21 chars
+            let fixed_width = if self.show_bar {
+                3 + 3 + 10 + 1 + 7 + 1 + BAR_WIDTH
+            } else {
+                3 + 3 + 10 + 1 + 7
+            };
             let name_width = inner.width.saturating_sub(fixed_width as u16) as usize;
             let display_name = truncate_name(name, name_width);
 
@@ -201,12 +261,53 @@ impl Widget for FileListWidget<'_> {
             buf.set_string(x, y_pos, &display_name, name_style);
 
             // Size (right-aligned)
-            let size_x = inner.right().saturating_sub(18);
+            // With bar: [size 10][space 1][pct 7][space 1][bar BAR_WIDTH] from right
+            //          = 10 + 1 + 7 + 1 + BAR_WIDTH = 19 + BAR_WIDTH = 39
+            // Without bar: [size 10][space 1][pct 7] = 18 chars from right
+            let size_offset: u16 = if self.show_bar {
+                19 + BAR_WIDTH as u16
+            } else {
+                18
+            };
+            let size_x = inner.right().saturating_sub(size_offset);
             buf.set_string(size_x, y_pos, format!("{:>10}", size_str), size_style);
 
             // Percentage
-            let pct_x = inner.right().saturating_sub(7);
+            let pct_offset: u16 = if self.show_bar {
+                8 + BAR_WIDTH as u16
+            } else {
+                7
+            };
+            let pct_x = inner.right().saturating_sub(pct_offset);
             buf.set_string(pct_x, y_pos, &pct_str, pct_style);
+
+            // Mini bar (only in List mode where panel is wide enough).
+            // Filled and empty parts are rendered separately so each gets its
+            // own color: filled = magnitude color, empty = subtle gray.
+            if self.show_bar {
+                let (filled, empty) = percentage_bar_parts(percentage);
+                let bar_start_x = inner.right().saturating_sub(BAR_WIDTH as u16);
+                let mag_color = bar_color(percentage);
+                // Filled portion (magnitude color)
+                if !filled.is_empty() {
+                    buf.set_string(
+                        bar_start_x,
+                        y_pos,
+                        &filled,
+                        base_style.fg(mag_color),
+                    );
+                }
+                // Empty portion (subtle gray so the bar boundary stays visible)
+                let empty_x = bar_start_x + filled.chars().count() as u16;
+                if empty_x < inner.right() {
+                    buf.set_string(
+                        empty_x,
+                        y_pos,
+                        &empty,
+                        base_style.fg(Color::DarkGray),
+                    );
+                }
+            }
 
             y_pos += 1;
         }
